@@ -17,21 +17,28 @@
 {{-- Navbar --}}
 <div class="navbar bg-base-200 border-b border-base-300">
     <div class="flex-1">
-        <a href="/" class="btn btn-ghost text-lg font-semibold">
+        <a href="/" class="btn btn-ghost normal-case text-lg gap-3">
+            <img
+                src="{{ asset('assets/logo.svg') }}"
+                alt="Laravel DS"
+                class="h-8 w-auto"
+            >
+            <span class="hidden sm:inline font-semibold">
             Laravel DS
+        </span>
         </a>
     </div>
 
     <div class="flex-none">
         {{-- Theme switcher route('ui.theme.set')--}}
-        <form method="POST" action="">
+        <form method="POST" action="{{route('ui.theme.set')}}">
             @csrf
             <select name="theme"
                     onchange="this.form.submit()"
                     class="select select-bordered select-sm">
                 @php
                     $current = session('ui.theme', 'light');
-                    $themes = ['light','dark','cupcake','corporate','business','night'];
+                    $themes = ['light','dark'];
                 @endphp
 
                 @foreach($themes as $theme)
