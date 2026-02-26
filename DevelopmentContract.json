@@ -1,0 +1,660 @@
+{
+    "contract_version": "1.0.1",
+    "meta": {
+        "name": "Laravel DS – Entity DSL + UI DSL + DB-driven ACL (middleware + combs)",
+        "language": "pl",
+        "rendering_hint": "Każdy węzeł ma {id,label,type,body,children}. Renderer może rekurencyjnie renderować label jako nagłówek, body jako opis i children jako podsekcje."
+    },
+    "tree": {
+        "id": "root",
+        "label": "Kontrakt developerski",
+        "type": "section",
+        "body": [
+            "Celem jest migracja istniejącej architektury vanilla PHP + React do Laravel, przy zachowaniu podejścia schema/data-driven, ale bez generowania czegokolwiek w locie (runtime).",
+            "Wprowadzamy: (1) migracje/model/controller/routy per encja, (2) osobny DSL dla UI schema jako kod PHP w App, (3) kontrolę dostępu DB-driven przez middleware + comb na dane i UI schema."
+        ],
+        "children": [
+            {
+                "id": "tech_stack",
+                "label": "Stack technologiczny",
+                "type": "section",
+                "body": [],
+                "children": [
+                    {
+                        "id": "tech_stack_backend",
+                        "label": "Backend (Laravel)",
+                        "type": "section",
+                        "body": [
+                            "Backend oparty o Laravel 12 + PHP 8.2. Brak runtime generatorów — wszystko wersjonowane w repo.",
+                            "SSR widoki realizujemy w Blade (tam gdzie ma to sens), również w duchu schema-driven, z myślą o wspólnym DSL."
+                        ],
+                        "children": [
+                            {
+                                "id": "tech_stack_backend_composer",
+                                "label": "composer.json (źródło prawdy)",
+                                "type": "code",
+                                "body": {
+                                    "format": "json",
+                                    "content": {
+                                        "$schema": "https://getcomposer.org/schema.json",
+                                        "name": "laravel/laravel",
+                                        "type": "project",
+                                        "description": "The skeleton application for the Laravel framework.",
+                                        "keywords": ["laravel", "framework"],
+                                        "license": "MIT",
+                                        "require": {
+                                            "php": "^8.2",
+                                            "laravel/framework": "^12.0",
+                                            "laravel/tinker": "^2.10.1",
+                                            "livewire/livewire": "^4.2"
+                                        },
+                                        "require-dev": {
+                                            "fakerphp/faker": "^1.23",
+                                            "laravel/pail": "^1.2.2",
+                                            "laravel/pint": "^1.24",
+                                            "laravel/sail": "^1.41",
+                                            "mockery/mockery": "^1.6",
+                                            "nunomaduro/collision": "^8.6",
+                                            "phpunit/phpunit": "^11.5.3"
+                                        },
+                                        "autoload": {
+                                            "psr-4": {
+                                                "App\\": "app/",
+                                                "Database\\Factories\\": "database/factories/",
+                                                "Database\\Seeders\\": "database/seeders/"
+                                            }
+                                        },
+                                        "autoload-dev": {
+                                            "psr-4": {
+                                                "Tests\\": "tests/"
+                                            }
+                                        },
+                                        "scripts": {
+                                            "setup": [
+                                                "composer install",
+                                                "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+                                                "@php artisan key:generate",
+                                                "@php artisan migrate --force",
+                                                "npm install",
+                                                "npm run build"
+                                            ],
+                                            "dev": [
+                                                "Composer\\Config::disableProcessTimeout",
+                                                "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1 --timeout=0\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,logs,vite --kill-others"
+                                            ],
+                                            "test": [
+                                                "@php artisan config:clear --ansi",
+                                                "@php artisan test"
+                                            ],
+                                            "post-autoload-dump": [
+                                                "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
+                                                "@php artisan package:discover --ansi"
+                                            ],
+                                            "post-update-cmd": [
+                                                "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
+                                            ],
+                                            "post-root-package-install": [
+                                                "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+                                            ],
+                                            "post-create-project-cmd": [
+                                                "@php artisan key:generate --ansi",
+                                                "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
+                                                "@php artisan migrate --graceful --ansi"
+                                            ],
+                                            "pre-package-uninstall": [
+                                                "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
+                                            ]
+                                        },
+                                        "extra": {
+                                            "laravel": {
+                                                "dont-discover": []
+                                            }
+                                        },
+                                        "config": {
+                                            "optimize-autoloader": true,
+                                            "preferred-install": "dist",
+                                            "sort-packages": true,
+                                            "allow-plugins": {
+                                                "pestphp/pest-plugin": true,
+                                                "php-http/discovery": true
+                                            }
+                                        },
+                                        "minimum-stability": "stable",
+                                        "prefer-stable": true
+                                    }
+                                },
+                                "children": []
+                            },
+                            {
+                                "id": "tech_stack_backend_css",
+                                "label": "UI/CSS na backendzie (SSR + admin)",
+                                "type": "section",
+                                "body": [
+                                    "Tailwind CSS + daisyUI.",
+                                    "Wybór theme przez usera (persistencja w sesji).",
+                                    "Mechanizm theme ma działać dla Blade SSR i ewentualnie paneli Livewire."
+                                ],
+                                "children": [
+                                    {
+                                        "id": "tech_stack_backend_css_theme_contract",
+                                        "label": "Kontrakt: przechowywanie i aplikacja theme",
+                                        "type": "object",
+                                        "body": {
+                                            "storage": {
+                                                "type": "session",
+                                                "key": "ui.theme",
+                                                "fallback": "light"
+                                            },
+                                            "application": {
+                                                "mechanism": "HTML data-attribute",
+                                                "attribute": "data-theme",
+                                                "source": "session('ui.theme', 'light')"
+                                            },
+                                            "api": {
+                                                "set_theme_route": {
+                                                    "method": "POST",
+                                                    "path": "/ui/theme",
+                                                    "route_name": "ui.theme.set",
+                                                    "payload": { "theme": "string" },
+                                                    "behavior": "Zapis theme do sesji i redirect/back (SSR) lub JSON (API) zależnie od Accept header."
+                                                }
+                                            }
+                                        },
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "tech_stack_backend_views",
+                                "label": "Widoki SSR (Blade) + schema-driven",
+                                "type": "list",
+                                "body": [
+                                    "Blade jako SSR engine tam, gdzie to ma sens (np. dashboardy, strony systemowe, szybkie CRUDy, auth, admin).",
+                                    "Widoki SSR korzystają z DSL (UI schema) jako źródła definicji układu/form/kolumn tam, gdzie to opłacalne.",
+                                    "Comby (SchemaComb) obowiązują również dla SSR — UI nigdy nie pokazuje pól poza uprawnieniami."
+                                ],
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "id": "tech_stack_frontend",
+                        "label": "Frontend (React)",
+                        "type": "section",
+                        "body": [
+                            "Frontend na razie bez refactoru architektury — integrujemy się z nowym backendem (CRUD + meta endpoints)."
+                        ],
+                        "children": [
+                            {
+                                "id": "tech_stack_frontend_details",
+                                "label": "Założenia technologiczne",
+                                "type": "object",
+                                "body": {
+                                    "react": "19",
+                                    "typescript": true,
+                                    "patterns": ["hooks"],
+                                    "styling": ["tailwindcss"]
+                                },
+                                "children": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "principles",
+                "label": "Zasady",
+                "type": "section",
+                "body": [
+                    "Brak runtime generation: żadnych dynamicznych migracji, modeli, kontrolerów czy struktur UI w locie.",
+                    "Wersjonowalność: migracje i DSL UI są w repo i podlegają code review.",
+                    "Jedno źródło prawdy dla restrykcji: AccessContext z ACL jest używany do filtrowania danych (API) oraz schematów (UI/meta).",
+                    "Testowalność: wszystkie kluczowe elementy mają testy jednostkowe i/lub feature tests."
+                ],
+                "children": []
+            },
+            {
+                "id": "deliverables",
+                "label": "Dostarczane artefakty",
+                "type": "section",
+                "body": [],
+                "children": [
+                    {
+                        "id": "deliverables_migrations",
+                        "label": "Migracje (DB)",
+                        "type": "list",
+                        "body": [
+                            "Przepisanie istniejących plików schema z vanili na migracje Laravel (kolejno, encja po encji).",
+                            "Wszystkie migracje commitowane do repo.",
+                            "Spójne indeksy, FK, constraints zgodnie z dotychczasowym schema."
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "deliverables_app",
+                        "label": "CRUD warstwa aplikacji",
+                        "type": "list",
+                        "body": [
+                            "Modele Eloquent per encja.",
+                            "Kontrolery per encja (bez generycznych runtime dispatcherów).",
+                            "Routy per encja (czytelne nazwy tras; możliwość grupowania i przypinania middleware ACL).",
+                            "Request classes (FormRequest) per akcja/encja (store/update/filter), gdzie ma to sens."
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "deliverables_ui_dsl",
+                        "label": "DSL dla UI schema",
+                        "type": "list",
+                        "body": [
+                            "UI schema jako hardcode w PHP (ładnie ustrukturyzowany), np. App\\UiSchema\\Users\\DashboardSchema, App\\UiSchema\\Users\\ImportSchema itd.",
+                            "Osobne endpointy meta zwracające strukturę UI schema i import schema.",
+                            "Schema DSL podlega combowi (field-level restrictions) tak jak dane."
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "deliverables_acl",
+                        "label": "ACL (DB-driven) + comb",
+                        "type": "list",
+                        "body": [
+                            "Model uprawnień oparty o tabele pages oraz user_pages (i pola can* + excluded/restricted fields).",
+                            "Powtarzalny middleware ACL dopinany do tras / grup tras / kontrolerów.",
+                            "AccessContext przekazywany dalej w request i używany do filtrowania danych oraz UI schema."
+                        ],
+                        "children": []
+                    }
+                ]
+            },
+            {
+                "id": "project_structure",
+                "label": "Struktura katalogów (docelowa)",
+                "type": "section",
+                "body": [],
+                "children": [
+                    {
+                        "id": "structure_app",
+                        "label": "App",
+                        "type": "tree",
+                        "body": [],
+                        "children": [
+                            {
+                                "id": "structure_app_http",
+                                "label": "app/Http",
+                                "type": "tree",
+                                "body": [],
+                                "children": [
+                                    {
+                                        "id": "structure_app_http_controllers",
+                                        "label": "Controllers",
+                                        "type": "list",
+                                        "body": [
+                                            "app/Http/Controllers/Api/{Entity}Controller.php",
+                                            "app/Http/Controllers/Api/Meta/{Entity}UiSchemaController.php (lub wspólny MetaController + mapowanie do klas DSL)",
+                                            "app/Http/Controllers/Api/Meta/{Entity}ImportSchemaController.php"
+                                        ],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "structure_app_http_requests",
+                                        "label": "Requests",
+                                        "type": "list",
+                                        "body": [
+                                            "app/Http/Requests/{Entity}/{Store,Update,IndexFilter}.php"
+                                        ],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "structure_app_http_middleware",
+                                        "label": "Middleware",
+                                        "type": "list",
+                                        "body": [
+                                            "app/Http/Middleware/EnsurePageAccess.php (ACL middleware; dokleja AccessContext do request)"
+                                        ],
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "structure_app_security",
+                                "label": "app/Security",
+                                "type": "tree",
+                                "body": [],
+                                "children": [
+                                    {
+                                        "id": "structure_app_security_access",
+                                        "label": "Access",
+                                        "type": "list",
+                                        "body": [
+                                            "app/Security/Access/AccessResolver.php (odczyt pages/user_pages, mapowanie akcji, budowa AccessContext)",
+                                            "app/Security/Access/AccessContext.php (DTO)",
+                                            "app/Security/Access/RouteActionMapper.php (route name -> action)"
+                                        ],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "structure_app_security_combs",
+                                        "label": "Combs (grzebienie)",
+                                        "type": "list",
+                                        "body": [
+                                            "app/Security/Comb/InputComb.php (write comb: wycina pola niedozwolone do zapisu)",
+                                            "app/Security/Comb/OutputComb.php (read comb: wycina pola niedozwolone do odczytu)",
+                                            "app/Security/Comb/SchemaComb.php (UI comb: filtruje DSL schema pod usera)"
+                                        ],
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "structure_app_uischema",
+                                "label": "app/UiSchema",
+                                "type": "tree",
+                                "body": [
+                                    "DSL schema per encja jako klasy PHP, bez generowania w locie."
+                                ],
+                                "children": [
+                                    {
+                                        "id": "structure_app_uischema_example",
+                                        "label": "Przykład",
+                                        "type": "list",
+                                        "body": [
+                                            "app/UiSchema/Users/DashboardSchema.php",
+                                            "app/UiSchema/Users/ImportSchema.php",
+                                            "app/UiSchema/Users/Forms/CreateForm.php (opcjonalnie)",
+                                            "app/UiSchema/Users/Forms/EditForm.php (opcjonalnie)"
+                                        ],
+                                        "children": []
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "routing",
+                "label": "Routing: konwencje i mapowanie akcji",
+                "type": "section",
+                "body": [
+                    "Nazwy tras są kluczowe: middleware ACL rozpoznaje akcję na podstawie route name (nie na podstawie URL).",
+                    "Trasy są grupowane per encja; ACL middleware dopinany do grupy lub kontrolera."
+                ],
+                "children": [
+                    {
+                        "id": "routing_conventions",
+                        "label": "Konwencje nazw route",
+                        "type": "list",
+                        "body": [
+                            "CRUD: entities.{entity}.index | show | store | update | destroy",
+                            "META: meta.{entity}.ui | meta.{entity}.import | meta.entities.index (lista encji)",
+                            "UI (SSR): ui.theme.set (ustawienie theme)",
+                            "Opcjonalnie: entities.{entity}.export | entities.{entity}.bulkUpdate itd. (wymaga dopisania mapowania akcji)"
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "routing_action_map",
+                        "label": "Mapowanie route name -> action",
+                        "type": "table",
+                        "body": [
+                            { "route": "entities.{entity}.index", "action": "list" },
+                            { "route": "entities.{entity}.show", "action": "view" },
+                            { "route": "entities.{entity}.store", "action": "create" },
+                            { "route": "entities.{entity}.update", "action": "edit" },
+                            { "route": "entities.{entity}.destroy", "action": "delete" },
+                            { "route": "meta.{entity}.ui", "action": "meta_ui" },
+                            { "route": "meta.{entity}.import", "action": "meta_import" },
+                            { "route": "ui.theme.set", "action": "ui_theme" }
+                        ],
+                        "children": []
+                    }
+                ]
+            },
+            {
+                "id": "acl",
+                "label": "ACL: DB-driven + middleware",
+                "type": "section",
+                "body": [
+                    "ACL jest realizowany w middleware (powtarzalny, dopinany do routes/groups/controllers).",
+                    "Middleware korzysta z DB (pages, user_pages) i wylicza AccessContext.",
+                    "Wynik AccessContext jest używany do: (1) allow/deny request, (2) comb na dane, (3) comb na UI schema."
+                ],
+                "children": [
+                    {
+                        "id": "acl_access_context",
+                        "label": "AccessContext – kontrakt danych",
+                        "type": "object",
+                        "body": {
+                            "user_id": "int",
+                            "page_key": "string",
+                            "entity_key": "string",
+                            "action": "string",
+                            "allowed": "bool",
+                            "is_global_admin": "bool",
+                            "is_local_admin": "bool",
+                            "denied_reason": "string|null",
+                            "view_denied_fields": "string[]",
+                            "edit_denied_fields": "string[]",
+                            "actions_denied": "string[]",
+                            "relations_denied": "string[]"
+                        },
+                        "children": [
+                            {
+                                "id": "acl_access_context_notes",
+                                "label": "Uwagi",
+                                "type": "list",
+                                "body": [
+                                    "view_denied_fields: pola usuwane z output (API) i z UI (kolumny, formy, filtry, SSR).",
+                                    "edit_denied_fields: pola wycinane z input oraz ustawiane jako readOnly/ukryte w UI (React/Blade/Livewire).",
+                                    "actions_denied: np. [\"delete\",\"bulkEdit\"] – UI ma ukryć przyciski, a API ma blokować akcje.",
+                                    "relations_denied: analogicznie dla relacji/resolve."
+                                ],
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "id": "acl_middleware_contract",
+                        "label": "EnsurePageAccess middleware – obowiązki",
+                        "type": "list",
+                        "body": [
+                            "Zidentyfikować entity_key oraz action z route (preferowane: route name + parametry).",
+                            "Zbudować AccessContext przez AccessResolver (odczyt DB).",
+                            "Jeśli allowed=false: przerwać request (403 lub 404 wg strategii ukrywania).",
+                            "Dokleić AccessContext do request (attributes) i/lub do container (scoped binding)."
+                        ],
+                        "children": []
+                    }
+                ]
+            },
+            {
+                "id": "combs",
+                "label": "Grzebień: filtrowanie danych i schematów",
+                "type": "section",
+                "body": [
+                    "Combs stosują AccessContext w trzech miejscach: input (write), output (read), schema (UI/meta/SSR).",
+                    "UI nigdy nie jest jedyną ochroną — backend zawsze egzekwuje comb na danych."
+                ],
+                "children": [
+                    {
+                        "id": "comb_input",
+                        "label": "InputComb (write comb)",
+                        "type": "list",
+                        "body": [
+                            "Wejście: payload (array) + AccessContext.",
+                            "Działanie: usuwa pola z edit_denied_fields oraz pola nieznane (opcjonalnie: allowlist per encja).",
+                            "Użycie: w FormRequest->validated() pipeline lub w Action przed zapisem."
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "comb_output",
+                        "label": "OutputComb (read comb)",
+                        "type": "list",
+                        "body": [
+                            "Wejście: rekord/collection + AccessContext.",
+                            "Działanie: usuwa pola z view_denied_fields (oraz opcjonalnie relacje z relations_denied).",
+                            "Użycie: JsonResource lub transform layer przed response."
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "comb_schema",
+                        "label": "SchemaComb (UI comb)",
+                        "type": "list",
+                        "body": [
+                            "Wejście: struktura DSL schema (np. dashboard/import/SSR view schema) + AccessContext.",
+                            "Działanie: usuwa/ukrywa pola w columns/forms/filters/import, ustawia editable=false tam gdzie trzeba, usuwa akcje z actions_denied.",
+                            "Użycie: meta endpoints oraz SSR pipeline przed renderem."
+                        ],
+                        "children": []
+                    }
+                ]
+            },
+            {
+                "id": "ui_dsl",
+                "label": "UI DSL: kontrakt i zasady",
+                "type": "section",
+                "body": [
+                    "DSL jest hardcoded w PHP i ma być ładniejszy/utrzymywalny w Laravelu.",
+                    "DSL jest niezależny od DB (poza combem), ale może odwoływać się do encji/kolumn/relacji.",
+                    "Struktura DSL powinna dać się serializować do JSON i rekursywnie renderować w UI (React) oraz w SSR (Blade/Livewire) tam gdzie potrzeba."
+                ],
+                "children": [
+                    {
+                        "id": "ui_dsl_contract",
+                        "label": "Kontrakt wyjściowy UI schema (JSON)",
+                        "type": "object",
+                        "body": {
+                            "entity": "string",
+                            "label": "string",
+                            "actions": "string[]",
+                            "columns": "UiField[]",
+                            "forms": {
+                                "create": "UiField[]",
+                                "edit": "UiField[]",
+                                "bulkEdit": "UiField[]"
+                            },
+                            "filters": "UiField[]",
+                            "relations": "UiRelation[]",
+                            "resolve": "UiResolve[]",
+                            "meta": "object"
+                        },
+                        "children": [
+                            {
+                                "id": "ui_dsl_types",
+                                "label": "Typy pomocnicze",
+                                "type": "object",
+                                "body": {
+                                    "UiField": {
+                                        "key": "string",
+                                        "label": "string",
+                                        "type": "string",
+                                        "editable": "bool",
+                                        "visible": "bool",
+                                        "required": "bool",
+                                        "default": "mixed|null",
+                                        "options": "array|null",
+                                        "validation": "array|null",
+                                        "width": "int|null"
+                                    },
+                                    "UiRelation": {
+                                        "key": "string",
+                                        "entity": "string",
+                                        "type": "string",
+                                        "label": "string"
+                                    },
+                                    "UiResolve": {
+                                        "key": "string",
+                                        "via": "string",
+                                        "labelField": "string"
+                                    }
+                                },
+                                "children": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "meta_endpoints",
+                "label": "Meta endpoints (UI schema / Import schema)",
+                "type": "section",
+                "body": [
+                    "Meta endpoints zwracają strukturę DSL (po zastosowaniu SchemaComb).",
+                    "Meta endpoints też podlegają ACL (np. meta_ui/meta_import)."
+                ],
+                "children": [
+                    {
+                        "id": "meta_endpoints_list",
+                        "label": "Lista endpointów",
+                        "type": "table",
+                        "body": [
+                            { "method": "GET", "path": "/api/meta/entities", "route_name": "meta.entities.index", "returns": "lista encji" },
+                            { "method": "GET", "path": "/api/meta/{entity}/ui", "route_name": "meta.{entity}.ui", "returns": "UI schema (po comb)" },
+                            { "method": "GET", "path": "/api/meta/{entity}/import", "route_name": "meta.{entity}.import", "returns": "Import schema (po comb)" }
+                        ],
+                        "children": []
+                    }
+                ]
+            },
+            {
+                "id": "testing",
+                "label": "Testy: wymagany zakres",
+                "type": "section",
+                "body": [],
+                "children": [
+                    {
+                        "id": "testing_access",
+                        "label": "AccessResolver & Middleware",
+                        "type": "list",
+                        "body": [
+                            "Test: user bez wpisu w user_pages => deny.",
+                            "Test: canList/canView/canEdit/canCreate/canDelete mapuje się na allow/deny dla właściwych akcji.",
+                            "Test: restricted fields poprawnie trafiają do AccessContext.",
+                            "Test: middleware poprawnie rozpoznaje action z route name."
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "testing_combs",
+                        "label": "Combs",
+                        "type": "list",
+                        "body": [
+                            "InputComb usuwa edit_denied_fields z payloadu.",
+                            "OutputComb usuwa view_denied_fields z response.",
+                            "SchemaComb usuwa/ukrywa pola w columns/forms/filters/import i akcje.",
+                            "Testy obejmują przypadki brzegowe (nested keys, null, computed/virtual)."
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "testing_endpoints",
+                        "label": "Feature tests (API)",
+                        "type": "list",
+                        "body": [
+                            "CRUD: deny/allow per akcja dla różnych userów.",
+                            "Meta: UI schema różni się zależnie od uprawnień (comb).",
+                            "Integracja: UI ukrywa pola, ale backend i tak je wycina/blokuje."
+                        ],
+                        "children": []
+                    }
+                ]
+            },
+            {
+                "id": "implementation_order",
+                "label": "Kolejność implementacji (rekomendowana)",
+                "type": "ordered_list",
+                "body": [
+                    "1) Migracje dla pages + user_pages + auth (jeśli nie istnieje).",
+                    "2) AccessResolver + AccessContext + EnsurePageAccess middleware + mapowanie route->action.",
+                    "3) InputComb/OutputComb/SchemaComb + testy jednostkowe.",
+                    "4) Theme (Tailwind + daisyUI) + SSR glue (Blade) z sesją ui.theme.",
+                    "5) Pierwsza encja end-to-end: migracja + model + controller + routes + requests + meta endpoints + UI DSL + testy feature.",
+                    "6) Kolejne encje iteracyjnie według tego samego wzorca."
+                ],
+                "children": []
+            }
+        ]
+    }
+}
