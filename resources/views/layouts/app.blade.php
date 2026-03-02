@@ -24,9 +24,11 @@
                 class="h-8 w-auto"
             >
             <span class="hidden sm:inline font-semibold">
-            Laravel DS
-        </span>
+                Laravel DS
+            </span>
         </a>
+        <a class="btn btn-ghost normal-case text-lg gap-3" href="{{route('business-contract.show')}}">BizContract</a>
+        <a class="btn btn-ghost normal-case text-lg gap-3" href="{{route('contract.show')}}">DevContract</a>
     </div>
 
     <div class="flex-none">

@@ -25,7 +25,7 @@
                         "label": "Backend (Laravel)",
                         "type": "section",
                         "body": [
-                            "Backend oparty o Laravel 12 + PHP 8.2. Brak runtime generatorów — wszystko wersjonowane w repo.",
+                            "Backend oparty o Laravel 12 + PHP 8.5. Brak runtime generatorów — wszystko wersjonowane w repo.",
                             "SSR widoki realizujemy w Blade (tam gdzie ma to sens), również w duchu schema-driven, z myślą o wspólnym DSL."
                         ],
                         "children": [
@@ -573,6 +573,74 @@
                                 "children": []
                             }
                         ]
+                    }
+                ]
+            },
+            {
+                "id": "deletion_auditing_policy",
+                "label": "Deletion & Auditing Policy",
+                "type": "section",
+                "body": [
+                    "System nie używa mechanizmu soft delete (brak kolumn is_deleted/deleted_at/deleted_by, brak Eloquent SoftDeletes).",
+                    "Usuwanie rekordów odbywa się wyłącznie jako hard delete (fizyczne DELETE).",
+                    "Ślad audytowy realizujemy poprzez logowanie requestów oraz log zmian encji do osobnych tabel (audit trail).",
+                    "Decyzja biznesowa: lokalizacja tabel logów (ta sama baza lub osobna baza/logging storage)."
+                ],
+                "children": [
+                    {
+                        "id": "request_log_contract",
+                        "label": "Request log – kontrakt danych",
+                        "type": "object",
+                        "body": {
+                            "table": "request_logs",
+                            "description": "Rejestr każdego requestu modyfikującego dane (oraz opcjonalnie odczytów), służy do audytu i diagnostyki.",
+                            "columns": {
+                                "id": "bigint (PK)",
+                                "user_id": "bigint (FK users.id, nullable)",
+                                "page_id": "bigint (FK pages.id, nullable)",
+                                "action": "string (np. list/view/create/edit/delete/meta_ui/meta_import)",
+                                "method": "string (GET/POST/PUT/PATCH/DELETE)",
+                                "route_name": "string (nullable)",
+                                "uri": "string",
+                                "ip_address": "string (nullable)",
+                                "payload": "json (nullable) – dane requestu z maskowaniem wrażliwych pól",
+                                "response_status": "int (nullable)",
+                                "created_at": "timestamp",
+                                "updated_at": "timestamp"
+                            },
+                            "indexes": [
+                                "index(user_id)",
+                                "index(page_id)",
+                                "index(action)",
+                                "index(route_name)"
+                            ]
+                        },
+                        "children": []
+                    },
+                    {
+                        "id": "entity_change_log_contract",
+                        "label": "Entity change log – kontrakt danych (audit trail)",
+                        "type": "object",
+                        "body": {
+                            "table": "entity_change_logs",
+                            "description": "Rejestr zmian per encja (create/update/delete) z before/after state.",
+                            "columns": {
+                                "id": "bigint (PK)",
+                                "entity_type": "string (np. users/pages/products)",
+                                "entity_id": "bigint",
+                                "action": "string (create/update/delete)",
+                                "before_state": "json (nullable)",
+                                "after_state": "json (nullable)",
+                                "changed_by": "bigint (FK users.id, nullable)",
+                                "changed_at": "timestamp"
+                            },
+                            "indexes": [
+                                "index(entity_type, entity_id)",
+                                "index(changed_by)",
+                                "index(action)"
+                            ]
+                        },
+                        "children": []
                     }
                 ]
             },

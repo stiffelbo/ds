@@ -7,11 +7,18 @@
 </{{ $headingTag }}>
 
 @if(!empty($node['body']))
-    @foreach($node['body'] as $paragraph)
+    @if(is_array($node['body']))
+        @foreach($node['body'] as $paragraph)
+            <p class="mb-2 text-base-content/80">
+                {{ $paragraph }}
+            </p>
+        @endforeach
+    @else
         <p class="mb-2 text-base-content/80">
-            {{ $paragraph }}
+            {{ $node['body'] }}
         </p>
-    @endforeach
+    @endif
+
 @endif
 
 @if(!empty($node['children']))

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BusinessContractController;
 use App\Http\Controllers\ContractController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -10,6 +11,9 @@ Route::get('/', function () {
 
 Route::get('/contract', [ContractController::class, 'show'])
     ->name('contract.show');
+
+Route::get('/business-contract', [BusinessContractController::class, 'show'])
+    ->name('business-contract.show');
 
 Route::post('/ui/theme', function (Request $request) {
     $request->validate([
