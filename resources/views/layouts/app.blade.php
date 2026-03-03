@@ -23,12 +23,11 @@
                 alt="Laravel DS"
                 class="h-8 w-auto"
             >
-            <span class="hidden sm:inline font-semibold">
-                Laravel DS
-            </span>
         </a>
-        <a class="btn btn-ghost normal-case text-lg gap-3" href="{{route('business-contract.show')}}">BizContract</a>
-        <a class="btn btn-ghost normal-case text-lg gap-3" href="{{route('contract.show')}}">DevContract</a>
+        <a class="btn btn-ghost normal-case text-sm gap-3" href="{{route('contract.show')}}">DevContract</a>
+        <a class="btn btn-ghost normal-case text-sm gap-3" href="{{route('data-model.show')}}">Data Model</a>
+        <a class="btn btn-ghost normal-case text-sm gap-3" href="{{route('business-contract.show')}}">BizContract</a>
+
     </div>
 
     <div class="flex-none">
@@ -55,7 +54,7 @@
 </div>
 
 {{-- Main content --}}
-<main class="py-8">
+<main class="py-8 px-8">
     @yield('content')
 </main>
 

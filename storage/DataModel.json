@@ -1,0 +1,890 @@
+[
+    {
+        "table_name": "users",
+        "label": "Użytkownicy",
+        "description": "Konta użytkowników aplikacji. Odpowiada za logowanie oraz identyfikację operatora w systemie.",
+        "layer": "DIM",
+        "pipeline": ["masterdata"],
+        "domain" : "SYSTEM",
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per user",
+        "status": "mvp",
+        "order_val": 1,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny użytkownika.", "required": true },
+            { "name": "name", "type": "string", "description": "Imię i nazwisko użytkownika.", "required": true },
+            { "name": "email", "type": "string", "description": "Unikalny adres e-mail (login).", "required": true },
+            { "name": "password", "type": "string", "description": "Hasło zahashowane.", "required": true },
+            { "name": "is_active", "type": "bool", "description": "Status aktywności konta.", "required": true }
+        ],
+        "notes": "Obsługuje autoryzację i identyfikację użytkownika w systemie."
+    },
+    {
+        "table_name": "pages",
+        "label": "Strony systemowe",
+        "description": "Rejestr stron/modułów aplikacji dostępnych w nawigacji oraz w systemie uprawnień.",
+        "layer": "DIM",
+        "pipeline": ["masterdata"],
+        "domain" : "SYSTEM",
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per page",
+        "status": "mvp",
+        "order_val": 2,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny strony.", "required": true },
+            { "name": "name", "type": "string", "description": "Nazwa techniczna strony (unikalna).", "required": true },
+            { "name": "label", "type": "string", "description": "Nazwa wyświetlana w menu.", "required": true },
+            { "name": "endpoint", "type": "string", "description": "Endpoint API powiązany ze stroną.", "required": false },
+            { "name": "frontend_url", "type": "string", "description": "Ścieżka frontendowa.", "required": false },
+            { "name": "group_label", "type": "string", "description": "Grupa w menu (np. CRM, Projects).", "required": false },
+            { "name": "menu_order", "type": "int", "description": "Kolejność w obrębie grupy.", "required": false },
+            { "name": "is_active", "type": "bool", "description": "Czy strona jest aktywna.", "required": true }
+        ],
+        "notes": "Stanowi podstawę budowy dynamicznej nawigacji i kontroli dostępu."
+    },
+    {
+        "table_name": "user_page",
+        "label": "Uprawnienia użytkownika do stron",
+        "description": "Relacja many-to-many między użytkownikami a stronami systemu. Określa dostęp do modułów.",
+        "layer": "DIM",
+        "pipeline": ["masterdata"],
+        "domain" : "SYSTEM",
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per user-page assignment",
+        "status": "mvp",
+        "order_val": 3,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "users", "fk": "user_id", "required": true },
+            { "type": "belongs_to", "table": "pages", "fk": "page_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny relacji.", "required": true },
+            { "name": "user_id", "type": "fk:users", "description": "Id użytkownika.", "required": true },
+            { "name": "page_id", "type": "fk:pages", "description": "Id strony.", "required": true },
+            { "name": "can_view", "type": "bool", "description": "Prawo do odczytu.", "required": true },
+            { "name": "can_edit", "type": "bool", "description": "Prawo do edycji.", "required": false },
+            { "name": "can_delete", "type": "bool", "description": "Prawo do usuwania.", "required": false },
+            { "name": "can_create", "type": "bool", "description": "Prawo do dodawania.", "required": false }
+        ],
+        "notes": "Umożliwia granularne sterowanie dostępem do modułów aplikacji."
+    },
+    {
+        "table_name": "dim_department",
+        "label": "Struktura organizacyjna",
+        "description": "Hierarchia działów/MPK (rekurencyjna). To podstawowy wymiar do przypisywania kosztów i przychodów oraz raportowania rentowności.",
+        "layer": "DIM",
+        "pipeline": ["masterdata", "costs", "income", "worklog", "materials"],
+        "domain" : "ORGANIZACJA",
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per department node",
+        "status": "mvp",
+        "order_val": 20,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_department", "fk": "parent_id", "required": false }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny działu.", "required": true },
+            { "name": "parent_id", "type": "fk:dim_department", "description": "Rodzic w hierarchii (null dla root).", "required": false },
+            { "name": "code", "type": "string", "description": "Kod działu/MPK (jeśli stosowane).", "required": false },
+            { "name": "name", "type": "string", "description": "Nazwa działu/MPK.", "required": true },
+            { "name": "is_active", "type": "bool", "description": "Czy dział jest aktywny.", "required": true }
+        ],
+        "notes": "Może zawierać mapowanie do MPK/komórek z Optimy poprzez code (lub osobne external_ref w kolejnej iteracji)."
+    },
+    {
+        "table_name": "dim_contractor",
+        "label": "Kontrahenci (klienci i dostawcy)",
+        "description": "Słownik kontrahentów: klienci i dostawcy. Dane importowane z Optimy (read-only) i doprecyzowywane w DS (np. segment, tagi, przypisania). Używane jako wymiar dla przychodów i kosztów oraz do spinania projektów.",
+        "layer": "DIM",
+        "pipeline": ["masterdata", "income", "costs"],
+        "domain": "CRM",
+        "source": { "id": "optima", "label": "Optima → DS", "color": "#F59E0B" },
+        "grain": "one row per contractor",
+        "status": "mvp",
+        "order_val": 25,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_employee", "fk": "account_manager_id", "required": false }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny kontrahenta w DS.", "required": true },
+
+            { "name": "external_ref", "type": "string", "description": "Id kontrahenta w Optimie (klucz źródłowy).", "required": true },
+
+            { "name": "name", "type": "string", "description": "Nazwa kontrahenta (bazowo z Optimy; możliwy override w DS).", "required": true },
+            { "name": "short_name", "type": "string", "description": "Nazwa skrócona (opcjonalnie).", "required": false },
+
+            { "name": "nip", "type": "string", "description": "NIP/VAT ID (opcjonalnie).", "required": false },
+            { "name": "country", "type": "string", "description": "Kraj (opcjonalnie).", "required": false },
+            { "name": "city", "type": "string", "description": "Miasto (opcjonalnie).", "required": false },
+
+            { "name": "is_customer", "type": "bool", "description": "Czy kontrahent jest klientem (wg Optimy lub doprecyzowania DS).", "required": true },
+            { "name": "is_supplier", "type": "bool", "description": "Czy kontrahent jest dostawcą (wg Optimy lub doprecyzowania DS).", "required": true },
+
+            { "name": "account_manager_id", "type": "fk:dim_employee", "description": "Opiekun handlowy (DS).", "required": false },
+
+            { "name": "tags", "type": "json", "description": "Tagi/segmenty (DS) – np. VIP, export, wholesale.", "required": false },
+
+            { "name": "is_active", "type": "bool", "description": "Czy kontrahent jest aktywny.", "required": true }
+        ],
+        "notes": "DS jest SSOT dla klasyfikacji (is_customer/is_supplier/tags/opiekun), ale external_ref i dane bazowe pochodzą z Optimy."
+    },
+    {
+        "table_name": "dim_employee",
+        "label": "Pracownicy",
+        "description": "Pracownicy jako nośnik kosztu pracy. Używane do worklogów, wyceny czasu i raportowania kosztów personalnych.",
+        "layer": "DIM",
+        "pipeline": ["masterdata", "worklog", "costs"],
+        "domain" : "ORGANIZACJA",
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per employee",
+        "status": "mvp",
+        "order_val": 30,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny pracownika.", "required": true },
+            { "name": "department_id", "type": "fk:dim_department", "description": "Domyślny dział/MPK pracownika.", "required": true },
+            { "name": "external_ref", "type": "string", "description": "Id z systemu czasu pracy (np. Clockify user id) lub HR.", "required": false },
+            { "name": "name", "type": "string", "description": "Imię i nazwisko.", "required": true },
+            { "name": "is_active", "type": "bool", "description": "Czy pracownik jest aktywny.", "required": true }
+        ],
+        "notes": "Jeśli wynagrodzenia są ładowane per okres: dodamy powiązanie do tabeli fact/raw salary dla wyceny pracy."
+    },
+    {
+        "table_name": "dim_process",
+        "label": "Procesy",
+        "description": "Słownik procesów/operacji wykonywanych w firmie. Proces jest jednostką, do której można przypisać pracowników, maszyny oraz wymagane materiały.",
+        "layer": "DIM",
+        "pipeline": ["worklog", "materials", "costs"],
+        "domain" : "PRODUKCJA",
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per process",
+        "status": "mvp",
+        "order_val": 40,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny procesu.", "required": true },
+            { "name": "department_id", "type": "fk:dim_department", "description": "Dział/MPK. Bez działu procesy ogólne", "required": false },
+            { "name": "code", "type": "string", "description": "Kod procesu (opcjonalnie).", "required": false },
+            { "name": "name", "type": "string", "description": "Nazwa procesu.", "required": true },
+            { "name": "category", "type": "string", "description": "Kategoria", "required": true },
+            { "name": "is_active", "type": "bool", "description": "Czy proces jest aktywny.", "required": true }
+        ],
+        "notes": null
+    },
+    {
+        "table_name": "dim_employee_process",
+        "label": "Procesy pracownika / matryca kompetencji",
+        "description": "Mapa: którzy pracownicy mogą wykonywać dany proces. Służy do walidacji worklogów i analiz obciążenia kompetencji.",
+        "layer": "RULES",
+        "pipeline": ["worklog", "costs"],
+        "domain" : "PRODUKCJA",
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per employee-process assignment",
+        "status": "mvp",
+        "order_val": 42,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_employee", "fk": "employee_id", "required": true },
+            { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny przypisania.", "required": true },
+            { "name": "employee_id", "type": "fk:dim_employee", "description": "Pracownik.", "required": true },
+            { "name": "process_id", "type": "fk:dim_process", "description": "Proces.", "required": true },
+            { "name": "is_active", "type": "bool", "description": "Czy przypisanie jest aktywne.", "required": true }
+        ],
+        "notes": "Jeśli nie chcesz walidacji, możesz to oznaczyć jako optional w kolejnej iteracji."
+    },
+    {
+        "table_name": "dim_machine",
+        "label": "Maszyny",
+        "description": "Słownik maszyn/urządzeń produkcyjnych. Maszyna należy do działu (owner department) i może być wykorzystywana w procesach.",
+        "layer": "DIM",
+        "pipeline": ["worklog", "materials", "costs"],
+        "domain" : "PRODUKCJA",
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per machine",
+        "status": "mvp",
+        "order_val": 50,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny maszyny.", "required": true },
+            { "name": "department_id", "type": "fk:dim_department", "description": "Dział właścicielski maszyny.", "required": true },
+            { "name": "code", "type": "string", "description": "Kod/inwentarz (opcjonalnie).", "required": false },
+            { "name": "name", "type": "string", "description": "Nazwa maszyny.", "required": true },
+            { "name": "is_active", "type": "bool", "description": "Czy maszyna jest aktywna.", "required": true }
+        ],
+        "notes": null
+    },
+    {
+        "table_name": "dim_machine_process",
+        "label": "Maszyny w procesach",
+        "description": "Mapa: które maszyny mogą/mają być używane w danym procesie. Służy do walidacji raportów i analiz kosztów na zasobach.",
+        "layer": "RULES",
+        "pipeline": ["worklog", "materials", "costs"],
+        "domain" : "PRODUKCJA",
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per machine-process assignment",
+        "status": "mvp",
+        "order_val": 51,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_machine", "fk": "machine_id", "required": true },
+            { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny przypisania.", "required": true },
+            { "name": "machine_id", "type": "fk:dim_machine", "description": "Maszyna.", "required": true },
+            { "name": "process_id", "type": "fk:dim_process", "description": "Proces.", "required": true },
+            { "name": "is_active", "type": "bool", "description": "Czy przypisanie jest aktywne.", "required": true }
+        ],
+        "notes": null
+    },
+    {
+        "table_name": "dim_material",
+        "label": "Materiały",
+        "description": "Słownik materiałów używanych w procesach. Źródłem referencji mogą być zasoby/kartoteki z Optimy, ale nie każdy zasób jest materiałem — DS oznacza, które pozycje są materiałami do rozliczeń.",
+        "layer": "DIM",
+        "pipeline": ["materials", "costs", "masterdata"],
+        "domain" : "PRODUKCJA",
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per material",
+        "status": "mvp",
+        "order_val": 60,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny materiału.", "required": true },
+            { "name": "external_ref", "type": "string", "description": "Id zasobu z Optimy (jeśli dotyczy).", "required": false },
+            { "name": "code", "type": "string", "description": "Kod/SKU materiału (opcjonalnie).", "required": false },
+            { "name": "name", "type": "string", "description": "Nazwa materiału.", "required": true },
+            { "name": "is_active", "type": "bool", "description": "Czy materiał jest aktywny.", "required": true }
+        ],
+        "notes": "Jeśli chcesz trzymać też zasoby nie-materiałowe, dodamy w kolejnej iteracji dim_resource + flagi. Na MVP wystarczy dim_material."
+    },
+    {
+        "table_name": "dim_process_material",
+        "label": "Materiały wymagane w procesach",
+        "description": "Mapa: jakie materiały są używane w procesie oraz czy są wymagane. Służy do walidacji raportów zużyć i definiowania BOM/oczekiwań procesowych na poziomie controllingu.",
+        "layer": "RULES",
+        "pipeline": ["materials", "costs"],
+        "domain" : "PRODUKCJA",
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per process-material mapping",
+        "status": "mvp",
+        "order_val": 61,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": true },
+            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny mapowania.", "required": true },
+            { "name": "process_id", "type": "fk:dim_process", "description": "Proces.", "required": true },
+            { "name": "material_id", "type": "fk:dim_material", "description": "Materiał.", "required": true },
+            { "name": "is_required", "type": "bool", "description": "Czy materiał jest wymagany dla procesu.", "required": true },
+            { "name": "is_active", "type": "bool", "description": "Czy mapowanie jest aktywne.", "required": true }
+        ],
+        "notes": "W kolejnej iteracji można dodać expected_qty / unit, jeśli chcesz porównywać normy vs wykonanie."
+    },
+    {
+        "table_name": "dim_project_groups",
+        "label": "Grupy projektów (typy)",
+        "description": "Słownik typów/grup projektów na bazie Jiry (projekty + typy zadań/semantyka), utrzymywany w DS jako SSOT. Grupa projektu jest pivotem dla szablonów BOM/kosztów (templatek podobnych do jira_issue_costs).",
+        "layer": "DIM",
+        "pipeline": ["masterdata", "costs", "worklog", "materials", "income"],
+        "domain" : "PROJEKTY",
+        "source": { "id": "Jira?", "label": "DS (na bazie Jiry)", "color": "#2563EB" },
+        "grain": "one row per project group/type",
+        "status": "mvp",
+        "order_val": 140,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny grupy projektu.", "required": true },
+            { "name": "code", "type": "string", "description": "Kod grupy (np. HIM, INTERNAL, OVERHEAD).", "required": true },
+            { "name": "name", "type": "string", "description": "Nazwa grupy/typu projektu.", "required": true },
+            { "name": "jira_project_key", "type": "string", "description": "Powiązanie do klucza projektu w Jira (opcjonalnie).", "required": false },
+            { "name": "jira_project_label", "type": "string", "description": "Nazwa projektu w Jira (opcjonalnie).", "required": false },
+            { "name": "is_active", "type": "bool", "description": "Czy grupa jest aktywna.", "required": true }
+        ],
+        "notes": "W DS ta tabela jest pivotem pod szablony BOM/kosztów; docelowo templates będą mapowane do project_group_id."
+    },
+    {
+        "table_name": "projects",
+        "label": "Projekty (rejestr)",
+        "description": "Rejestr projektów/zamówień do rozliczeń. Wzorowany na danych z jira_issue (klucze, nazwa, klient, status, daty, ilości, ceny). Używany do spinania przychodów i kosztów oraz do BOM/templatek.",
+        "layer": "DIM",
+        "pipeline": ["income", "costs", "worklog", "materials"],
+        "domain" : "PROJEKTY",
+        "source": { "id": "jira", "label": "Jira → DS", "color": "#2563EB" },
+        "grain": "one row per project (jira issue)",
+        "status": "mvp",
+        "order_val": 150,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_project_groups", "fk": "project_group_id", "required": false },
+            { "type": "belongs_to", "table": "dim_contractor", "fk": "contractor_id", "required": false },
+            { "type": "belongs_to", "table": "dim_employee", "fk": "reporter_id", "required": false },
+            { "type": "belongs_to", "table": "dim_employee", "fk": "assignee_id", "required": false },
+            { "type": "belongs_to", "table": "dim_employee", "fk": "production_manager_id", "required": false },
+            { "type": "belongs_to", "table": "dim_employee", "fk": "account_manager_id", "required": false }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny projektu w DS.", "required": true },
+
+            { "name": "jira_key", "type": "string", "description": "Sygnatura z Jiry (np. ABC-123).", "required": true },
+            { "name": "jira_parent_key", "type": "string", "description": "Sygnatura parenta (opcjonalnie).", "required": false },
+            { "name": "jira_id", "type": "string", "description": "ID issue z Jiry (opcjonalnie).", "required": false },
+            { "name": "jira_url", "type": "string", "description": "Link do issue w Jira (opcjonalnie).", "required": false },
+            { "name": "jira_project_key", "type": "string", "description": "Klucz projektu w Jira.", "required": false },
+            { "name": "jira_project_label", "type": "string", "description": "Nazwa projektu w Jira.", "required": false },
+
+            { "name": "project_group_id", "type": "fk:dim_project_groups", "description": "Grupa/typ projektu (pivot pod template BOM/kosztów).", "required": false },
+
+            { "name": "name", "type": "string", "description": "Nazwa projektu/zamówienia.", "required": true },
+            { "name": "description", "type": "text", "description": "Opis (opcjonalnie).", "required": false },
+            { "name": "status", "type": "string", "description": "Status projektu (workflow).", "required": false },
+
+            { "name": "contractor_id", "type": "fk:dim_contractor", "description": "Klient/kontrahent (opcjonalnie).", "required": false },
+
+            { "name": "start_date", "type": "date", "description": "Data startu (opcjonalnie).", "required": false },
+            { "name": "end_date", "type": "date", "description": "Data zakończenia (opcjonalnie).", "required": false },
+
+            { "name": "qty_ordered", "type": "decimal", "description": "Zamówiona ilość (opcjonalnie).", "required": false },
+            { "name": "qty_done", "type": "decimal", "description": "Ilość wykonana (opcjonalnie).", "required": false },
+            { "name": "qty_invoiced", "type": "decimal", "description": "Ilość zafakturowana (opcjonalnie).", "required": false },
+
+            { "name": "currency", "type": "string", "description": "Waluta projektu (np. PLN).", "required": true },
+
+            { "name": "unit_price", "type": "decimal", "description": "Cena jednostkowa netto (opcjonalnie).", "required": false },
+            { "name": "setup_price", "type": "decimal", "description": "Cena setup netto (opcjonalnie).", "required": false },
+            { "name": "design_price", "type": "decimal", "description": "Cena projektu/design netto (opcjonalnie).", "required": false },
+
+            { "name": "budget_net", "type": "decimal", "description": "Budżet netto (opcjonalnie).", "required": false },
+            { "name": "planned_margin_pct", "type": "decimal", "description": "Planowana marża % (opcjonalnie).", "required": false },
+            { "name": "planned_revenue_net", "type": "decimal", "description": "Planowany przychód netto (opcjonalnie).", "required": false }
+        ],
+        "notes": "To jest zarządczy rejestr projektów. Kosztowe BOM/pozycje plan/wykonanie są w osobnej tabeli (odpowiednik jira_issue_costs) i będą mapowane do project_id."
+    },
+    {
+        "table_name": "rule_project_group_material",
+        "label": "Template zasobów projektu",
+        "description": "Tabela reguł: jakie materiały/zasoby są standardowo wymagane dla danego typu projektu (grupy projektów). To jest prosta 'templatka materiałowa' bez wersjonowania i bez generowania tasków/procesów.",
+        "layer": "RULES",
+        "pipeline": ["materials", "costs", "masterdata"],
+        "domain": "PROJEKTY",
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per project_group x material rule",
+        "status": "mvp",
+        "order_val": 165,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_project_groups", "fk": "project_group_id", "required": true },
+            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny reguły.", "required": true },
+
+            { "name": "project_group_id", "type": "fk:dim_project_groups", "description": "Typ/grupa projektu.", "required": true },
+            { "name": "material_id", "type": "fk:dim_material", "description": "Materiał/zasób używany w projektach tego typu.", "required": true },
+
+            { "name": "is_required", "type": "bool", "description": "Czy materiał jest wymagany dla tego typu projektu.", "required": true },
+
+            { "name": "qty_basis", "type": "enum(fixed,per_unit)", "description": "Zasada ilościowa: stała lub zależna od nakładu projektu.", "required": true },
+            { "name": "fixed_qty", "type": "decimal", "description": "Stała ilość (gdy qty_basis=fixed).", "required": false },
+            { "name": "coefficient", "type": "decimal", "description": "Współczynnik na sztukę (gdy qty_basis=per_unit), np. g/szt.", "required": false },
+
+            { "name": "uom", "type": "string", "description": "Jednostka miary (np. g, szt).", "required": true },
+
+            { "name": "waste_pct", "type": "decimal", "description": "Opcjonalny odpad % doliczany do ilości.", "required": false },
+            { "name": "min_qty", "type": "decimal", "description": "Opcjonalne minimum po przeliczeniu.", "required": false },
+
+            { "name": "order_val", "type": "int", "description": "Kolejność w template dla UI.", "required": false },
+            { "name": "is_active", "type": "bool", "description": "Czy reguła jest aktywna.", "required": true }
+        ],
+        "notes": "W MVP wystarczy fixed/per_unit. Jeśli kiedyś zechcesz normy per batch lub zależne od atrybutów produktu/projektu, to rozszerzysz qty_basis albo dodasz pola parametryczne."
+    },
+    {
+        "table_name": "dim_period",
+        "label": "Okresy rozliczeniowe",
+        "description": "Definicja okresów rozliczeniowych (najczęściej miesiące kalendarzowe). Okres jest pivotem raportowania przychodów i kosztów oraz zamykania controllingu.",
+        "layer": "DIM",
+        "pipeline": ["costs", "income", "worklog", "materials", "allocation"],
+        "domain": "FINANSE",
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per accounting period (month)",
+        "status": "mvp",
+        "order_val": 10,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny okresu.", "required": true },
+
+            { "name": "year", "type": "int", "description": "Rok (np. 2026).", "required": true },
+            { "name": "month", "type": "int", "description": "Numer miesiąca (1–12).", "required": true },
+
+            { "name": "name", "type": "string", "description": "Techniczna nazwa okresu (np. 2026-02).", "required": true },
+            { "name": "label", "type": "string", "description": "Nazwa wyświetlana (np. '2026 Luty').", "required": true },
+
+            { "name": "day_from", "type": "date", "description": "Data początkowa okresu.", "required": true },
+            { "name": "day_to", "type": "date", "description": "Data końcowa okresu.", "required": true },
+
+            { "name": "is_closed", "type": "bool", "description": "Czy okres jest zamknięty (blokada przeliczeń).", "required": true },
+            { "name": "closed_at", "type": "datetime", "description": "Data zamknięcia okresu (opcjonalnie).", "required": false },
+
+            { "name": "is_active", "type": "bool", "description": "Czy okres jest aktywny w systemie.", "required": true }
+        ],
+        "notes": "Okres jest głównym pivotem raportowania. Po zamknięciu (is_closed=true) dane nie powinny być modyfikowane ani przeliczane bez specjalnej akcji administracyjnej."
+    },
+    {
+        "table_name": "raw_sales_line",
+        "label": "Sprzedaż – pozycje dokumentów (raw)",
+        "description": "Surowe pozycje sprzedażowe importowane z Optimy (granulat: jedna pozycja na dokumencie). Służy jako wejście do mapowań i budowy fact_income.",
+        "layer": "RAW",
+        "pipeline": ["income"],
+        "domain": "FINANSE",
+        "source": { "id": "optima", "label": "Optima → DS", "color": "#F59E0B" },
+        "grain": "one row per sales document line",
+        "status": "mvp",
+        "order_val": 300,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "users", "fk": "created_by", "required": true },
+            { "type": "belongs_to", "table": "dim_contractor", "fk": "contractor_id", "required": false },
+            { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": false }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz rekordu w DS (staging).", "required": true },
+
+            { "name": "item_id", "type": "int", "description": "Id pozycji/wiersza w źródle (Optima) lub identyfikator linii importu.", "required": true },
+
+            { "name": "document_date", "type": "date", "description": "Data dokumentu sprzedaży.", "required": true },
+            { "name": "shipping_date", "type": "date", "description": "Data wysyłki (opcjonalnie).", "required": false },
+
+            { "name": "document_number", "type": "string", "description": "Numer dokumentu.", "required": true },
+            { "name": "document_series", "type": "string", "description": "Seria dokumentu (opcjonalnie).", "required": false },
+
+            { "name": "is_settled", "type": "bool", "description": "Czy dokument rozliczony (opcjonalnie z Optimy).", "required": false },
+            { "name": "settlement_date", "type": "date", "description": "Data rozliczenia (opcjonalnie).", "required": false },
+
+            { "name": "payment_due_date", "type": "date", "description": "Termin płatności (opcjonalnie).", "required": false },
+            { "name": "payment_due_plus_30", "type": "date", "description": "Termin płatności +30 (pole pomocnicze do raportów).", "required": false },
+            { "name": "within_payment_due_plus_30", "type": "bool", "description": "Czy mieści się w terminie +30 (pole pomocnicze).", "required": false },
+
+            { "name": "creator_name", "type": "string", "description": "Nazwa wystawiającego (opcjonalnie).", "required": false },
+            { "name": "modifier_name", "type": "string", "description": "Nazwa modyfikującego (opcjonalnie).", "required": false },
+
+            { "name": "customer_name", "type": "string", "description": "Nazwa kontrahenta wg dokumentu (raw).", "required": false },
+            { "name": "contractor_id", "type": "fk:dim_contractor", "description": "Kontrahent zmapowany w DS (opcjonalnie).", "required": false },
+
+            { "name": "product_code", "type": "string", "description": "Kod produktu/towaru z dokumentu.", "required": false },
+            { "name": "product_slug", "type": "string", "description": "Slug/alias produktu (opcjonalnie).", "required": false },
+
+            { "name": "main_group_level_1", "type": "string", "description": "Kod grupy głównej poziom 1 (raw).", "required": false },
+            { "name": "main_group_level_1_name", "type": "string", "description": "Nazwa grupy poziom 1 (raw).", "required": false },
+            { "name": "main_group_level_2", "type": "string", "description": "Kod grupy poziom 2 (raw).", "required": false },
+            { "name": "main_group_level_2_name", "type": "string", "description": "Nazwa grupy poziom 2 (raw).", "required": false },
+
+            { "name": "quantity", "type": "decimal", "description": "Ilość na pozycji (opcjonalnie).", "required": false },
+
+            { "name": "net_value", "type": "decimal", "description": "Wartość netto pozycji.", "required": false },
+            { "name": "cost_value", "type": "decimal", "description": "Koszt własny przypisany do pozycji (jeśli dostępny w imporcie).", "required": false },
+            { "name": "profit_value", "type": "decimal", "description": "Zysk na pozycji (jeśli liczony w imporcie).", "required": false },
+
+            { "name": "profitability", "type": "bool", "description": "Flaga/kwalifikacja do raportów rentowności (opcjonalnie).", "required": false },
+
+            { "name": "ref", "type": "string", "description": "Referencja biznesowa (np. numer zamówienia/projektu) z dokumentu (raw).", "required": false },
+            { "name": "ref_id", "type": "int", "description": "Id referencji (jeśli występuje).", "required": false },
+            { "name": "income_reference", "type": "string", "description": "Referencja do mapowania przychodu (raw).", "required": false },
+
+            { "name": "period_id", "type": "fk:dim_period", "description": "Okres rozliczeniowy wyznaczony z document_date (opcjonalnie w raw).", "required": false },
+
+            { "name": "created_by", "type": "fk:users", "description": "Użytkownik, który wykonał import/utworzył rekord.", "required": true }
+        ],
+        "notes": "To jest staging (RAW). Docelowy SSOT dla analiz to fact_income, które będzie miało już zmapowane wymiary: period, contractor, department, project, employee itd."
+    },
+    {
+        "table_name": "raw_salary",
+        "label": "Wynagrodzenia – koszt pracownika w okresie (raw)",
+        "description": "Surowe rozliczenie wynagrodzeń per pracownik i okres (miesiąc). Import z Optimy + ewentualne doprecyzowanie w DS. Służy jako wejście do wyceny czasu pracy i budowy fact_cost.",
+        "layer": "RAW",
+        "pipeline": ["costs", "worklog"],
+        "domain": "FINANSE",
+        "source": { "id": "optima", "label": "Optima → DS", "color": "#F59E0B" },
+        "grain": "one row per employee per period",
+        "status": "mvp",
+        "order_val": 320,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "dim_employee", "fk": "employee_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz rekordu w DS.", "required": true },
+
+            { "name": "period_id", "type": "fk:dim_period", "description": "Okres rozliczeniowy (miesiąc).", "required": true },
+            { "name": "employee_id", "type": "fk:dim_employee", "description": "Pracownik.", "required": true },
+
+            { "name": "total_cost", "type": "decimal", "description": "Całkowity koszt pracownika w okresie (PLN).", "required": true },
+
+            { "name": "rcp_hours_paid", "type": "decimal", "description": "Godziny zapłacone / RCP w okresie (snapshot).", "required": false },
+            { "name": "hours_projects", "type": "decimal", "description": "Godziny projektowe (snapshot).", "required": false },
+            { "name": "hours_general", "type": "decimal", "description": "Godziny ogólne/gospodarcze (snapshot).", "required": false },
+
+            { "name": "hour_rate_rcp", "type": "decimal", "description": "Stawka godzinowa z RCP (snapshot).", "required": false },
+            { "name": "hour_rate_projects", "type": "decimal", "description": "Stawka godzinowa projektowa (snapshot; np. total_cost / hours_projects).", "required": false },
+
+            { "name": "employee_name", "type": "string", "description": "Nazwa pracownika (snapshot z importu).", "required": false },
+            { "name": "dept_name", "type": "string", "description": "Nazwa działu (snapshot z importu).", "required": false },
+            { "name": "occupation_name", "type": "string", "description": "Stanowisko (snapshot z importu).", "required": false },
+
+            { "name": "description", "type": "string", "description": "Opis/uwagi do rozliczenia (opcjonalnie).", "required": false },
+
+            { "name": "external_ref", "type": "string", "description": "Id rekordu w źródle (Optima) / klucz importu (opcjonalnie).", "required": false },
+            { "name": "is_active", "type": "bool", "description": "Czy rekord aktywny (do korekt/importów).", "required": true }
+        ],
+        "notes": "Założenie: unikalność (employee_id, period_id). Jeśli chcesz trzymać korekty/wersje importu, dodamy raw_import_batch_id albo effective_from/effective_to."
+    },
+    {
+        "table_name": "raw_cost_line",
+        "label": "Koszty – pozycje księgowe (raw)",
+        "description": "Surowe pozycje kosztowe importowane z Optimy (lub extractu z Optimy). Rekord zawiera klasyfikację marży (poziom kosztu w P&L: direct/management/admin/marketing itd.) oraz podstawowe atrybuty do mapowania na działy i raportowania.",
+        "layer": "RAW",
+        "pipeline": ["costs"],
+        "domain": "FINANSE",
+        "source": { "id": "optima", "label": "Optima → DS", "color": "#F59E0B" },
+        "grain": "one row per cost line",
+        "status": "mvp",
+        "order_val": 310,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "users", "fk": "created_by", "required": true },
+            { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": false },
+            { "type": "belongs_to", "table": "dim_contractor", "fk": "contractor_id", "required": false }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz rekordu w DS (staging).", "required": true },
+
+            { "name": "external_ref", "type": "string", "description": "Id w Optimie / klucz źródłowy (id_optima).", "required": false },
+
+            { "name": "document_name", "type": "string", "description": "Nazwa/typ dokumentu (raw).", "required": false },
+
+            { "name": "entity_code", "type": "string", "description": "Podmiot (kod) – jeśli w extract.", "required": false },
+            { "name": "entity_name", "type": "string", "description": "Podmiot (nazwa) – jeśli w extract.", "required": false },
+
+            { "name": "department_code", "type": "string", "description": "Dział/MPK (kod) z danych źródłowych (dzial).", "required": true },
+            { "name": "division_code", "type": "string", "description": "Wydział/komórka (wydzial).", "required": true },
+
+            { "name": "department_id", "type": "fk:dim_department", "description": "Dział zmapowany w DS (opcjonalnie).", "required": false },
+
+            { "name": "contractor_name", "type": "string", "description": "Kontrahent nazwa (podmiot_nazwa) lub opis strony kosztu (raw).", "required": false },
+            { "name": "contractor_id", "type": "fk:dim_contractor", "description": "Kontrahent zmapowany w DS (opcjonalnie).", "required": false },
+
+            { "name": "cost_type", "type": "string", "description": "Rodzaj kosztu (rodzaj).", "required": true },
+            { "name": "name", "type": "string", "description": "Nazwa pozycji kosztu (name).", "required": true },
+
+            { "name": "amount", "type": "decimal", "description": "Wartość kosztu (rate) w walucie bazowej (np. PLN).", "required": true },
+
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
+            { "name": "is_balance", "type": "bool", "description": "Czy zapis bilansowy (is_bilance).", "required": true },
+
+            { "name": "period_id", "type": "fk:dim_period", "description": "Okres rozliczeniowy (id_period).", "required": true },
+
+            { "name": "account_date", "type": "date", "description": "Data księgowania (account_date).", "required": true },
+            { "name": "account_primary", "type": "string", "description": "Konto główne (account_primary).", "required": true },
+            { "name": "account_secondary", "type": "string", "description": "Konto pomocnicze/analityka (account_secondary).", "required": true },
+
+            { "name": "created_by", "type": "fk:users", "description": "Użytkownik/importer, który wprowadził rekord do DS (id_user).", "required": true }
+        ],
+        "notes": "Pole 'marza' jako bool jest zbyt ubogie dla Twojego znaczenia. W DS trzymaj margin_level jako int/enum. Jeśli chcesz słownik: dodamy dim_margin_level."
+    },
+    {
+        "table_name": "raw_worklog",
+        "label": "Raport pracy – wpisy czasu (raw)",
+        "description": "Surowe wpisy czasu pracy importowane z Clockify (lub podobnego źródła). Dane są spinane z pracownikiem, działem i okresem; opcjonalnie mapowane do projektu (projects) po sygnaturze taska.",
+        "layer": "RAW",
+        "pipeline": ["worklog", "costs"],
+        "domain": "PRODUKCJA",
+        "source": { "id": "clockify", "label": "Clockify → DS", "color": "#111827" },
+        "grain": "one row per time entry",
+        "status": "mvp",
+        "order_val": 400,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "dim_employee", "fk": "employee_id", "required": true },
+            { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz rekordu w DS.", "required": true },
+
+            { "name": "period_id", "type": "fk:dim_period", "description": "Okres rozliczeniowy (pivot raportowania).", "required": true },
+            { "name": "employee_id", "type": "fk:dim_employee", "description": "Pracownik (zmapowany po email/external_ref).", "required": true },
+            { "name": "department_id", "type": "fk:dim_department", "description": "Dział/MPK (z pracownika lub z mapowania).", "required": true },
+
+            { "name": "source_project_name", "type": "string", "description": "Nazwa projektu z eksportu Clockify.", "required": false },
+            { "name": "source_client_name", "type": "string", "description": "Klient z eksportu Clockify (raw).", "required": false },
+
+            { "name": "task_key", "type": "string", "description": "Sygnatura taska (np. HIM-123) z eksportu.", "required": true },
+            { "name": "parent_task_key", "type": "string", "description": "Sygnatura parenta (opcjonalnie).", "required": false },
+
+            { "name": "description", "type": "text", "description": "Opis wpisu czasu (raw).", "required": false },
+
+            { "name": "start_at", "type": "datetime", "description": "Start wpisu czasu (jeśli dostępny).", "required": false },
+            { "name": "end_at", "type": "datetime", "description": "Koniec wpisu czasu (jeśli dostępny).", "required": false },
+
+            { "name": "minutes", "type": "int", "description": "Czas trwania w minutach (wartość SSOT do sumowania).", "required": true },
+
+            { "name": "is_billable", "type": "bool", "description": "Czy wpis billable (jeśli z eksportu).", "required": false },
+
+            { "name": "source_user_name", "type": "string", "description": "Imię i nazwisko z eksportu (raw).", "required": false },
+            { "name": "source_email", "type": "string", "description": "Email z eksportu (do mapowania pracownika).", "required": false },
+
+            { "name": "source_group", "type": "string", "description": "Grupa z eksportu (raw).", "required": false },
+            { "name": "tags", "type": "string", "description": "Tagi z eksportu (raw).", "required": false },
+
+            { "name": "external_ref", "type": "string", "description": "Id wpisu w źródle (Clockify), jeśli dostępne.", "required": false }
+        ],
+        "notes": "W SSOT trzymaj minutes jako podstawę. Start/end są opcjonalne i tylko do audytu. Mapowanie do projects robisz po task_key (jira_key)."
+    },
+    {
+        "table_name": "raw_worklog",
+        "label": "Worklog – raport pracy (processed)",
+        "description": "Ustrukturyzowany raport czasu pracy (docelowa postać do rozliczeń). Każdy wpis jest przypisany do procesu i działu, opcjonalnie do projektu oraz maszyny. Wspiera oznaczenie poprawek (rework).",
+        "layer": "RAW",
+        "pipeline": ["worklog", "costs"],
+        "domain": "PRODUKCJA",
+        "source": { "id": "gem", "label": "GEM/Excel → DS (processed)", "color": "#6B7280" },
+        "grain": "one row per worklog entry",
+        "status": "mvp",
+        "order_val": 500,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "dim_employee", "fk": "employee_id", "required": true },
+            { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": true },
+            { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": true },
+            { "type": "belongs_to", "table": "dim_machine", "fk": "machine_id", "required": false },
+            { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": false }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz rekordu worklog w DS.", "required": true },
+
+            { "name": "period_id", "type": "fk:dim_period", "description": "Okres rozliczeniowy (pivot).", "required": true },
+
+            { "name": "employee_id", "type": "fk:dim_employee", "description": "Pracownik wykonujący pracę.", "required": true },
+            { "name": "department_id", "type": "fk:dim_department", "description": "Dział/MPK, w którym rozliczamy pracę.", "required": true },
+            { "name": "process_id", "type": "fk:dim_process", "description": "Proces/operacja, której dotyczy praca.", "required": true },
+
+            { "name": "ref_id", "type": "fk", "description": "Projekt (opcjonalnie – część wpisów to overhead).", "required": false },
+            { "name": "ref", "type": "string", "description": "Referencja tekstowa", "required": false },
+
+            { "name": "machine_id", "type": "fk:dim_machine", "description": "Maszyna użyta w pracy (opcjonalnie).", "required": false },
+
+            { "name": "started_at", "type": "datetime", "description": "Start wpisu (opcjonalnie).", "required": false },
+            { "name": "finished_at", "type": "datetime", "description": "Koniec wpisu (opcjonalnie).", "required": false },
+
+            { "name": "hours", "type": "decimal", "description": "Czas trwania w godzinach.", "required": true },
+            { "name": "qty", "type": "int", "description": "Ilość/sztuki/partie powiązane z wpisem (jeśli używane).", "required": false },
+
+            { "name": "is_rework", "type": "bool", "description": "Czy praca była poprawką (rework).", "required": true },
+
+            { "name": "notes", "type": "text", "description": "Uwagi do wpisu.", "required": false }
+        ],
+        "notes": "Surowa tabela z czasami pracy z GEM ew żródeł importowanych innych niż Clockify"
+    },
+    {
+        "table_name": "raw_material_usage",
+        "label": "Zużycia materiałów – dekretacja na projekt (raw)",
+        "description": "Ustrukturyzowany raport zużycia materiałów przypisany do projektu (dekretacja). Wpis może być powiązany z procesem, maszyną i (opcjonalnie) z wpisem czasu pracy. To jest warstwa RAW przed wyceną i faktami kosztowymi.",
+        "layer": "RAW",
+        "pipeline": ["materials", "costs"],
+        "domain": "PRODUKCJA",
+        "source": { "id": "gem", "label": "GEM/Excel → DS", "color": "#6B7280" },
+        "grain": "one row per material usage entry",
+        "status": "mvp",
+        "order_val": 520,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": true },
+            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": true },
+            { "type": "belongs_to", "table": "dim_machine", "fk": "machine_id", "required": false },
+            { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": false },
+            { "type": "belongs_to", "table": "raw_worklog", "fk": "worklog_id", "required": false },
+            { "type": "belongs_to", "table": "dim_employee", "fk": "employee_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz rekordu zużycia w DS.", "required": true },
+
+            { "name": "ref_id", "type": "fk", "description": "Projekt, którego dotyczy zużycie.", "required": true },
+            { "name": "ref", "type": "string", "description": "Referencja tekstowa", "required": true },
+
+            { "name": "material_id", "type": "fk:dim_material", "description": "Materiał/zasób zużyty.", "required": true },
+
+            { "name": "process_id", "type": "fk:dim_process", "description": "Proces/operacja (opcjonalnie).", "required": false },
+            { "name": "machine_id", "type": "fk:dim_machine", "description": "Maszyna (opcjonalnie).", "required": false },
+
+            { "name": "qty", "type": "decimal", "description": "Ilość zużyta.", "required": true },
+            { "name": "amount", "type": "decimal", "description": "Wartość zużycia (jeśli w raporcie; docelowo do walidacji/porównań).", "required": true },
+
+            { "name": "employee_id", "type": "fk:dim_employee", "description": "Pracownik raportujący zużycie.", "required": true },
+
+            { "name": "is_rework", "type": "bool", "description": "Czy zużycie dotyczy poprawki (rework).", "required": true },
+
+            { "name": "source_ref", "type": "string", "description": "Id rekordu w źródle (GEM/Excel) – do idempotencji.", "required": false }
+        ],
+        "notes": "amount w RAW może być z raportu (walidacja), ale docelowa wycena materiału w FACT będzie bazować na kosztach z Optimy lub cenniku. Jeśli 'id_user' jest operatorem systemu, zmienimy employee_id na created_by."
+    },
+    {
+        "table_name": "raw_purchase_allocation",
+        "label": "Zakupy – dekretacja do projektu (raw)",
+        "description": "Ustrukturyzowana dekretacja zakupów (materiały/usługi) do konkretnego projektu. Dane pochodzą z GEM/Excel i służą jako wejście do rozliczeń kosztów projektu przed finalnymi fact_cost.",
+        "layer": "RAW",
+        "pipeline": ["costs"],
+        "domain": "PROJEKTY",
+        "source": { "id": "gem", "label": "GEM/Excel → DS", "color": "#6B7280" },
+        "grain": "one row per allocated purchase line",
+        "status": "mvp",
+        "order_val": 530,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": true },
+            { "type": "belongs_to", "table": "dim_contractor", "fk": "supplier_id", "required": true },
+            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": true },
+            { "type": "belongs_to", "table": "dim_employee", "fk": "employee_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz rekordu dekretacji zakupu w DS.", "required": true },
+
+            { "name": "project_id", "type": "fk:projects", "description": "Projekt, którego dotyczy zakup.", "required": true },
+
+            { "name": "supplier_id", "type": "fk:dim_contractor", "description": "Dostawca/kontrahent (supplier).", "required": true },
+
+            { "name": "material_id", "type": "fk:dim_material", "description": "Kupiony materiał/usługa (jeden słownik na MVP).", "required": true },
+
+            { "name": "qty", "type": "decimal", "description": "Ilość zakupiona/zadekretowana.", "required": true },
+            { "name": "unit_price", "type": "decimal", "description": "Cena jednostkowa (PLN).", "required": true },
+
+            { "name": "invoice_no", "type": "string", "description": "Numer faktury (opcjonalnie).", "required": false },
+
+            { "name": "employee_id", "type": "fk:dim_employee", "description": "Osoba, która zdekretowała zakup (GEM user).", "required": true },
+
+            { "name": "notes", "type": "text", "description": "Uwagi (opcjonalnie).", "required": false },
+
+            { "name": "is_stock", "type": "bool", "description": "Czy zakup dotyczy magazynu (czy_magazyn).", "required": true },
+
+            { "name": "source_ref", "type": "string", "description": "Id rekordu w źródle (GEM/Excel) – do idempotencji.", "required": false }
+        ],
+        "notes": "unit_price w źródle jest string — w DS przechowuj jako decimal. Wartość pozycji możesz liczyć jako qty * unit_price w widoku/raporcie lub w późniejszym FACT."
+    },
+    {
+        "table_name": "proc_worklog_valued",
+        "label": "Praca – wycenione wpisy czasu (processed)",
+        "description": "Wycena kosztu pracy na poziomie pojedynczego wpisu worklog. Powstaje z raw_worklog oraz raw_salary przez wyliczenie stawki godzinowej per pracownik i okres (tylko na podstawie godzin projektowych). Zasila docelowe koszty projektów.",
+        "layer": "FACT",
+        "pipeline": ["worklog", "costs"],
+        "domain": "FINANSE",
+        "source": { "id": "ds", "label": "DS (processed)", "color": "#16A34A" },
+        "grain": "one row per valued worklog entry",
+        "status": "mvp",
+        "order_val": 900,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "dim_employee", "fk": "employee_id", "required": true },
+            { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": true },
+            { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": true },
+            { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": true },
+            { "type": "belongs_to", "table": "dim_machine", "fk": "machine_id", "required": false },
+            { "type": "belongs_to", "table": "raw_worklog", "fk": "raw_worklog_id", "required": true },
+            { "type": "belongs_to", "table": "raw_salary", "fk": "raw_salary_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz rekordu wyceny.", "required": true },
+
+            { "name": "period_id", "type": "fk:dim_period", "description": "Okres rozliczeniowy.", "required": true },
+            { "name": "employee_id", "type": "fk:dim_employee", "description": "Pracownik.", "required": true },
+
+            { "name": "department_id", "type": "fk:dim_department", "description": "Dział/MPK.", "required": true },
+            { "name": "process_id", "type": "fk:dim_process", "description": "Proces/operacja.", "required": true },
+            { "name": "project_id", "type": "fk:projects", "description": "Projekt (wpis musi być projektowy).", "required": true },
+            { "name": "machine_id", "type": "fk:dim_machine", "description": "Maszyna (opcjonalnie).", "required": false },
+
+            { "name": "is_rework", "type": "bool", "description": "Czy poprawka/rework.", "required": true },
+
+            { "name": "hours", "type": "decimal", "description": "Czas wpisu (min).", "required": true },
+
+            { "name": "hour_rate", "type": "decimal", "description": "Stawka godzinowa wyliczona dla (employee,period) na bazie godzin projektowych.", "required": true },
+            { "name": "cost_amount", "type": "decimal", "description": "Koszt wpisu: minutes/60 * hour_rate.", "required": true },
+            { "name": "currency", "type": "string", "description": "Waluta (np. PLN).", "required": true },
+
+            { "name": "raw_worklog_id", "type": "fk:raw_worklog", "description": "Źródłowy wpis worklog (audyt).", "required": true },
+            { "name": "raw_salary_id", "type": "fk:raw_salary", "description": "Źródłowe wynagrodzenie użyte do wyceny (audyt).", "required": true }
+        ],
+        "notes": "Wycena liczona tylko dla wpisów z project_id != null. Dla kontroli: suma cost_amount per (employee,period) powinna być równa raw_salary.total_cost minus pula unallocated."
+    },
+    {
+        "table_name": "fact_income",
+        "label": "Przychody – SSOT per projekt",
+        "description": "Wynikowa tabela przychodów: każda pozycja jest w 100% przypisana do projektu. Powstaje przez procesowanie raw_sales_line (przypisanie 1:1 lub podział jednej pozycji na wiele projektów). To główna tabela do raportowania przychodów.",
+        "layer": "FACT",
+        "pipeline": ["income"],
+        "domain": "FINANSE",
+        "source": { "id": "ds", "label": "DS (processed z Optimy)", "color": "#16A34A" },
+        "grain": "one row per allocated income line per project",
+        "status": "mvp",
+        "order_val": 800,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": true },
+            { "type": "belongs_to", "table": "dim_contractor", "fk": "contractor_id", "required": false },
+            { "type": "belongs_to", "table": "raw_sales_line", "fk": "raw_sales_line_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz rekordu przychodu w DS.", "required": true },
+
+            { "name": "period_id", "type": "fk:dim_period", "description": "Okres (miesiąc) – pivot raportowania.", "required": true },
+            { "name": "project_id", "type": "fk:projects", "description": "Projekt, do którego w 100% przypisano przychód.", "required": true },
+
+            { "name": "contractor_id", "type": "fk:dim_contractor", "description": "Klient/kontrahent (jeśli zmapowany).", "required": false },
+
+            { "name": "raw_sales_line_id", "type": "fk:raw_sales_line", "description": "Referencja do źródłowej pozycji sprzedaży (audyt).", "required": true },
+
+            { "name": "document_date", "type": "date", "description": "Data dokumentu (snapshot z raw).", "required": true },
+            { "name": "document_number", "type": "string", "description": "Numer dokumentu (snapshot z raw).", "required": true },
+
+            { "name": "currency", "type": "string", "description": "Waluta (snapshot).", "required": true },
+
+            { "name": "qty_allocated", "type": "decimal", "description": "Ilość przypisana do projektu (jeśli dotyczy).", "required": false },
+
+            { "name": "net_amount", "type": "decimal", "description": "Kwota netto przypisana do projektu (100% tej linii).", "required": true },
+            { "name": "vat_amount", "type": "decimal", "description": "VAT przypisany do projektu (opcjonalnie).", "required": false },
+            { "name": "gross_amount", "type": "decimal", "description": "Brutto przypisane do projektu (opcjonalnie).", "required": false },
+
+            { "name": "allocation_method", "type": "enum(direct,split_pct,split_qty,split_amount,manual)", "description": "Metoda przypisania/rozbicia.", "required": true },
+            { "name": "allocation_key", "type": "string", "description": "Klucz reguły/źródła alokacji (opcjonalnie do audytu).", "required": false },
+
+            { "name": "note", "type": "string", "description": "Komentarz do przypisania (opcjonalnie).", "required": false }
+        ],
+        "notes": "Ważne: suma net_amount po wszystkich rekordach fact_income dla danej raw_sales_line_id powinna równać się wartości netto źródła (kontrola spójności)."
+    }
+]

@@ -1,0 +1,199 @@
+{
+    "contract_version": "2.0.0",
+    "meta": {
+        "name": "Laravel DS – Kontrakt biznesowy (transformacje RAW → FACT)",
+        "language": "pl",
+        "rendering_hint": "Każdy węzeł ma {id,label,type,body,children}. Renderer może rekurencyjnie renderować label jako nagłówek, body jako opis i children jako podsekcje.",
+        "sources": [
+            { "id": "optima", "label": "Comarch Optima (read-only)", "color": "#F59E0B" },
+            { "id": "jira", "label": "Jira", "color": "#2563EB" },
+            { "id": "clockify", "label": "Clockify (export/import)", "color": "#111827" },
+            { "id": "gem", "label": "GEM / AsanaGenerator (raporty operacyjne)", "color": "#7C3AED" },
+            { "id": "excel", "label": "Excel / import ręczny", "color": "#22C55E" },
+            { "id": "ds", "label": "DS (Laravel + MySQL)", "color": "#16A34A" }
+        ],
+        "definitions": {
+            "period_pivot": "Okres rozliczeniowy = miesiąc kalendarzowy. Wszystkie fakty (income/costs) są liczone i raportowane per period.",
+            "time_unit": "Godziny w formacie decimal (np. 1.50). Technicznie minuty są lepsze, ale w MVP trzymamy hours_decimal."
+        }
+    },
+    "tree": {
+        "id": "business_contract_root",
+        "label": "Kontrakt biznesowy: transformacje RAW → FACT",
+        "type": "section",
+        "body": "Ten dokument opisuje reguły przetwarzania danych: od importów surowych (Optima/Clockify/GEM/Excel) przez normalizację i mapowania, aż do dwóch tabel wynikowych: FACT Income oraz FACT Costs. Model danych (tabele/kolumny) jest opisany w osobnym kontrakcie MvpDataModel.",
+        "children": [
+            {
+                "id": "ssot_goal",
+                "label": "Cel biznesowy (SSOT)",
+                "type": "list",
+                "body": [
+                    "Jedno źródło prawdy (SSOT) dla: przychodów i kosztów na poziomie projektu/klienta/działu/pracownika/procesu/maszyny/materiału.",
+                    "Możliwość policzenia marży/profitability per pivoty zarządcze w ujęciu miesięcznym (period).",
+                    "Audytowalność: każdy rekord w FACT ma wskazanie na źródło (raw) lub regułę/operację przeliczeniową."
+                ],
+                "children": []
+            },
+            {
+                "id": "pipelines_overview",
+                "label": "Pipeline’y i ogólny przepływ",
+                "type": "section",
+                "body": [
+                    "1) Import RAW (źródła zewnętrzne) →",
+                    "2) Normalizacja i dopięcie kluczy (period, kontrahent, projekt, pracownik, dział, proces, maszyna, materiał) →",
+                    "3) Mapowania/reguły (w tym split pozycji, walidacje, klasyfikacje) →",
+                    "4) Wyliczenia (np. stawka godzinowa, wartościowanie) →",
+                    "5) Publikacja do FACT: income i costs."
+                ],
+                "children": [
+                    {
+                        "id": "audit_and_rerun",
+                        "label": "Audyt i rekalkulacja",
+                        "type": "list",
+                        "body": [
+                            "RAW nigdy nie jest „poprawiany” przez reguły — RAW to zapis importu.",
+                            "Zmiana reguł/mapowań powoduje ponowne przeliczenie FACT dla wskazanego period.",
+                            "Każdy FACT ma klucze do: period oraz wskaźnik pochodzenia (raw_reference / calc_rule_reference)."
+                        ],
+                        "children": []
+                    }
+                ]
+            },
+            {
+                "id": "income_rules",
+                "label": "Reguły: przychody (RAW → FACT Income)",
+                "type": "section",
+                "body": "Celem jest 100% zakotwiczenie przychodu w projekcie (project). Jeżeli pozycja sprzedażowa dotyczy wielu projektów — rozbijamy ją do granulatu per projekt (split).",
+                "children": [
+                    {
+                        "id": "income_inputs",
+                        "label": "Wejścia (RAW)",
+                        "type": "list",
+                        "body": [
+                            "RAW Sales (Optima): pozycje sprzedażowe, daty dokumentu, kontrahent, wartości netto/koszt/profit (jeśli dostępne).",
+                            "Dodatkowe wskazania projektowe (Excel/DS): mapowanie/splity pozycji na projekty, jeśli Optima nie niesie jednoznacznego klucza projektu."
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "income_period_assignment",
+                        "label": "Przypisanie do okresu (period)",
+                        "type": "list",
+                        "body": [
+                            "Domyślnie period wynika z document_date (data dokumentu).",
+                            "Jeżeli biznesowo przychód ma się liczyć w shipping_date lub settlement_date — dopuszczamy przełącznik reguły na poziomie pipeline (konfiguracja).",
+                            "W MVP: domyślnie document_date."
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "income_project_anchor",
+                        "label": "Zakotwiczenie przychodu w projekcie",
+                        "type": "list",
+                        "body": [
+                            "Reguła 1 (prosta): jeżeli RAW Sales ma bezpośredni identyfikator projektu/ref → mapujemy 1:1 do project.",
+                            "Reguła 2 (split): jeżeli 1 pozycja sprzedażowa dotyczy wielu projektów → tworzymy N rekordów FACT Income, każdy z udziałem (pct) lub ilością (qty) tak, aby suma = 100% pozycji źródłowej.",
+                            "Reguła 3 (manual override): jeśli nie da się ustalić projektu automatycznie, pozycja trafia do kolejki „unassigned income” do ręcznego przypisania/splita."
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "income_fact_output",
+                        "label": "Wynik (FACT Income) – semantyka",
+                        "type": "list",
+                        "body": [
+                            "1 rekord = przychód przypisany do (period, project).",
+                            "Rekord niesie także wymiary do raportowania: contractor/customer, department (jeżeli wynika z projektu lub mapowania), product/material (opcjonalnie).",
+                            "Wartość: net_amount (netto). Dodatkowo można trzymać qty/currency i referencje do dokumentu."
+                        ],
+                        "children": []
+                    }
+                ]
+            },
+            {
+                "id": "costs_rules",
+                "label": "Reguły: koszty (RAW → FACT Costs)",
+                "type": "section",
+                "body": "Koszty dzielimy na grupy (marża/warstwa zarządcza). Część kosztów jest bezpośrednia (praca, materiały), część pośrednia i wymaga alokacji.",
+                "children": [
+                    {
+                        "id": "cost_groups_margin",
+                        "label": "Klasyfikacja kosztów wg „marży” (poziomy)",
+                        "type": "list",
+                        "body": [
+                            "1: koszty bezpośrednie produkcji (praca, materiały, zużycia projektowe).",
+                            "2: koszt zarządu produkcji (nadzór, planowanie, utrzymanie).",
+                            "3: koszt obsługi projektów (PM/AM, koordynacja).",
+                            "4: koszty administracji (backoffice).",
+                            "5: koszty marketingu / sprzedaży (opcjonalnie).",
+                            "Uwaga: w danych kosztowych może to występować jako pole/atrybut „marza” lub dedykowana klasyfikacja — DS traktuje to jako wymiar kosztu (cost_group)."
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "labor_costing",
+                        "label": "Koszt pracy: worklog + wynagrodzenia → FACT Costs (labor)",
+                        "type": "section",
+                        "body": "Wycena pracy powstaje przez połączenie: (A) raportów czasu pracy przypisanych do projektu (worklog) oraz (B) kosztu pracownika w danym period (wynagrodzenia).",
+                        "children": [
+                            {
+                                "id": "labor_inputs",
+                                "label": "Wejścia",
+                                "type": "list",
+                                "body": [
+                                    "RAW Worklog (GEM / raport operacyjny): wpisy czasu z procesem, działem, projektem/ref, maszyną, flagą poprawki (rework) itp.",
+                                    "RAW Salaries (Optima/HR extract): koszt pracownika per period (total_rate) + snapshoty nazw; traktujemy jako źródło kosztu pracy."
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "labor_hourly_rate_rule",
+                                "label": "Reguła wyliczania stawki godzinowej (NOWA)",
+                                "type": "section",
+                                "body": [
+                                    "Dla każdego (employee, period):",
+                                    "1) Liczymy hours_project = suma hours_decimal ze wszystkich wpisów worklog, które są zakotwiczone do projektu (ref istnieje) w danym period.",
+                                    "2) Bierzemy total_rate = koszt pracownika w period (z wynagrodzeń).",
+                                    "3) Jeżeli hours_project > 0 → hourly_rate = total_rate / hours_project.",
+                                    "4) Jeżeli hours_project = 0 → hourly_rate jest nieokreślona, a całe total_rate trafia do „labor_unallocated” (koszty pracy do podziału) w danym period.",
+                                    "W MVP liczymy hours_decimal (nie minutes)."
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "labor_valued_worklog",
+                                "label": "Wartościowanie wpisów worklog",
+                                "type": "list",
+                                "body": [
+                                    "Każdy wpis worklog z projektem dostaje cost_amount = hours_decimal * hourly_rate (wyliczoną per employee+period).",
+                                    "Do kosztu przenosimy klucze: period, employee, department, process, machine, project/ref, is_rework.",
+                                    "Wynik trafia do FACT Costs jako koszt typu „labor” i cost_group=1 (bezpośredni), o ile wpis dotyczy projektu."
+                                ],
+                                "children": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "final_products",
+                "label": "Produkty końcowe (output systemu)",
+                "type": "section",
+                "body": "W MVP celem jest przygotowanie dwóch tabel do raportowania i łączenia: FACT Income oraz FACT Costs. Marty/agregaty są opcjonalne i mogą nie powstać w pierwszej iteracji.",
+                "children": [
+                    {
+                        "id": "fact_income",
+                        "label": "FACT Income (wynik)",
+                        "type": "list",
+                        "body": [
+                            "Ziarnistość: 1 rekord = (period, project, ewentualnie split_key).",
+                            "Wartości: net_amount, currency (opcjonalnie qty).",
+                            "Wymiary: contractor/customer, project_group, department (opcjonalnie), referencje do dokumentów."
+                        ],
+                        "children": []
+                    }
+                ]
+            }
+        ]
+    }
+}

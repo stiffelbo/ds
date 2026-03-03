@@ -1,0 +1,98 @@
+{
+    "contract_name": "MvpDataModel",
+    "version": "0.1.0",
+    "language": "pl",
+    "intent": "SSOT modelu danych do: (1) renderu overview/matrix w Blade/Livewire, (2) generowania migracji i modeli. Model opisuje warstwy (RAW/DIM/RULES/FACT) i pipeline’y (np. costs/income/worklog/materials) oraz minimalne pola i relacje bez pól technicznych typu timestamps.",
+    "enums": {
+        "layer": ["RAW", "DIM", "RULES", "FACT"],
+        "pipeline": ["costs", "income", "worklog", "materials", "allocation", "masterdata"],
+        "domains" : ["SYSTEM",
+            "ORGANIZACJA",
+            "PRODUKCJA",
+            "PROJEKTY",
+            "CRM",
+            "FINANSE",
+            "ANALITYKA"],
+        "source_id": ["optima", "ds", "clockify", "gem", "excel"],
+        "ui_component": ["card", "table", "badge"],
+        "relation_type": ["belongs_to", "has_many", "many_to_many"],
+        "field_type": [
+            "pk",
+            "fk:<table_name>",
+            "string",
+            "text",
+            "int",
+            "decimal",
+            "bool",
+            "date",
+            "datetime",
+            "json",
+            "enum(...)"
+        ],
+        "status": ["mvp", "next", "optional", "deprecated"]
+    },
+    "table_schema": {
+        "table_name": "string (snake_case, z prefiksem: raw_/dim_/map_/rule_/fact_)",
+        "label": "string (nazwa biznesowa do UI)",
+        "description": "string (1–2 zdania: co to jest i po co)",
+        "layer": "enum(layer)",
+        "pipeline": "array<enum(pipeline)>",
+        "domain" : "array<enum(domains)>",
+        "source": {
+            "id": "enum(source_id)",
+            "label": "string",
+            "color": "string (hex)"
+        },
+        "grain": "string (ziarnistość: 'one row per ...')",
+        "status": "enum(status)",
+        "order_val": "number (sortowanie w UI)",
+        "ui": {
+            "component": "enum(ui_component)",
+            "color_override": "string|null (hex, opcjonalnie)"
+        },
+        "relations": [
+            {
+                "type": "enum(relation_type)",
+                "table": "string (table_name target)",
+                "fk": "string (nazwa klucza, np. company_id)",
+                "required": "bool (czy FK jest NOT NULL)"
+            }
+        ],
+        "fields": [
+            {
+                "name": "string (snake_case)",
+                "type": "enum(field_type)",
+                "description": "string (krótko po co pole)",
+                "required": "bool (domyślnie true)",
+                "example": "string|number|bool|null (opcjonalnie)"
+            }
+        ],
+        "notes": "string|null (opcjonalnie: uwagi mapowania, ryzyka, drill-down)"
+    },
+    "rendering_contract": {
+        "matrix_axes": {
+            "rows": "layer",
+            "columns": "pipeline",
+            "cell_value": "tables[]"
+        },
+        "sorting": ["order_val asc", "label asc"],
+        "color_priority": ["ui.color_override", "source.color"]
+    },
+    "template_table": {
+        "table_name": "dim_example",
+        "label": "Przykład",
+        "description": "Opis biznesowy encji (1–2 zdania).",
+        "layer": "DIM",
+        "pipeline": ["masterdata"],
+        "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
+        "grain": "one row per example",
+        "status": "mvp",
+        "order_val": 10,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "Klucz główny.", "required": true }
+        ],
+        "notes": null
+    }
+}

@@ -10,7 +10,7 @@ class ContractController extends Controller
 {
     public function show(Request $request): View
     {
-        $path = base_path('DevelopmentContract.json');
+        $path = base_path('/storage/DevelopmentContract.json');
 
         if (! File::exists($path)) {
             abort(404, 'DevelopmentContract.json not found.');

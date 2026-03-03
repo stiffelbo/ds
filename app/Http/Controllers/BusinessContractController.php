@@ -9,7 +9,7 @@ class BusinessContractController
 {
     public function show(Request $request): View
     {
-        $path = base_path('BusinessContract.json');
+        $path = base_path('/storage/BusinessContract.json');
 
         if (! File::exists($path)) {
             abort(404, 'BusinessContract.json not found.');

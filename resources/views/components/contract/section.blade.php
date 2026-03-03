@@ -26,8 +26,10 @@
         @foreach($node['children'] as $child)
             @include('components.contract.node', [
                 'node' => $child,
-                'level' => $level + 1
-            ])
+                'level' => $level + 1,
+                'visited' => $visited ?? [],
+                'maxDepth' => $maxDepth ?? 30,
+               ])
         @endforeach
     </div>
 @endif
