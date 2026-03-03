@@ -67,25 +67,27 @@
 
             <div class="flex items-center gap-2 flex-wrap justify-end">
                 @if($layer)
-                    <span class="badge {{ $layerBadge }} badge-outline text-xs">
+                    <span class="badge {{ $layerBadge }} badge-outline text-xs" title="warstwa danych">
                         {{ $layer }}
                     </span>
                 @endif
 
                 @if($domain)
-                    <span class="badge badge-outline text-xs">
+                    <span class="badge badge-outline text-xs" title="domena danych">
                         {{ $domain }}
                     </span>
                 @endif
 
                 @if($status)
-                    <span class="badge {{ $statusBadge }} text-xs">
+                    <span class="badge {{ $statusBadge }} text-xs" title="status aplikacji modelu">
                         {{ $status }}
                     </span>
                 @endif
 
                 <span class="badge text-white border-0 text-xs"
-                      style="background-color: {{ $sourceColor }};">
+                      style="background-color: {{ $sourceColor }};"
+                      title="źródło danych"
+                >
                     {{ $sourceId }}
                 </span>
             </div>
@@ -103,7 +105,7 @@
         {{-- Meta --}}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             @if($grain)
-                <div class="rounded-xl border border-base-300 bg-base-200/40 p-3">
+                <div class="rounded-xl border border-base-300 bg-base-200/40 p-3" title="Co reprezentuje wiersz w tabeli">
                     <div class="text-xs uppercase tracking-wide text-base-content/60 mb-1">Grain</div>
                     <div class="text-sm text-base-content/80">{{ $grain }}</div>
                 </div>

@@ -112,9 +112,9 @@
             },
             {
                 "id": "costs_rules",
-                "label": "Reguły: koszty (RAW → FACT Costs)",
+                "label": "Reguły: koszty (RAW → PROCESSED → FACT Costs)",
                 "type": "section",
-                "body": "Koszty dzielimy na grupy (marża/warstwa zarządcza). Część kosztów jest bezpośrednia (praca, materiały), część pośrednia i wymaga alokacji.",
+                "body": "Koszty klasyfikujemy zawsze wg „marży” (cost_group). Każdy koszt (bez wyjątku) ma przypisaną marżę/poziom zarządczy. Koszty dzielą się na bezpośrednie (marża=1: praca, materiały, zużycia projektowe) oraz pośrednie (marża>1), które wymagają alokacji po godzinach projektowych w kontrolowanym zakresie (scope) tak, aby np. koszty Galwanizerni nie obciążały projektów, które nie korzystały z Galwanizerni.",
                 "children": [
                     {
                         "id": "cost_groups_margin",
@@ -126,71 +126,170 @@
                             "3: koszt obsługi projektów (PM/AM, koordynacja).",
                             "4: koszty administracji (backoffice).",
                             "5: koszty marketingu / sprzedaży (opcjonalnie).",
-                            "Uwaga: w danych kosztowych może to występować jako pole/atrybut „marza” lub dedykowana klasyfikacja — DS traktuje to jako wymiar kosztu (cost_group)."
+                            "Reguła: pole „marża”/klasyfikacja kosztu jest obowiązkowa w RAW/PROCESSED/FACT (cost_group). Praca zawsze ma cost_group=1."
                         ],
                         "children": []
                     },
+
+                    {
+                        "id": "costs_sources_overview",
+                        "label": "Źródła kosztów i kanały przetwarzania",
+                        "type": "list",
+                        "body": [
+                            "RAW Cost Lines (Optima): księgowe wiersze kosztowe o różnym charakterze; wymagają przypisania marży (cost_group) i docelowo projektu lub puli do alokacji.",
+                            "RAW Purchase Allocation (GEM/DS): dekretacje zakupów do projektów (ilość, cena, nr faktury) – preferowany kanał bezpośredniego przypisania kosztu do projektu.",
+                            "RAW Materials Allocation (GEM/DS): dekretacje zużyć materiałowych na projekt – kanał bezpośredniego przypisania kosztu do projektu.",
+                            "RAW Salaries (Optima/HR extract): koszt pracownika per period (total_rate) – źródło kosztu pracy.",
+                            "RAW/PROC Worklog (GEM/DS): raporty czasu pracy z procesem/działem/maszyną/ref(projekt)/flagą poprawki.",
+                            "FACT Costs: SSOT kosztów do raportów, zawiera koszty przypisane oraz pule nieprzypisane z instrukcją alokacji (po godzinach)."
+                        ],
+                        "children": []
+                    },
+
+                    {
+                        "id": "direct_costs_rules",
+                        "label": "Koszty bezpośrednie (marża=1) — zasada",
+                        "type": "section",
+                        "body": "Koszty bezpośrednie (cost_group=1) powinny w idealnym scenariuszu być zakotwiczone do projektu. Jeśli nie są (np. brak ref), trafiają do puli do alokacji w scope ograniczonym do obszaru, którego dotyczą (proces/dział/grupa produktowa), a ostateczny fallback to all_projects.",
+                        "children": []
+                    },
+
+                    {
+                        "id": "purchase_costs_allocation",
+                        "label": "Koszty zakupów: RAW Cost Lines + dekretacje zakupów → PROCESSED → FACT Costs",
+                        "type": "section",
+                        "body": "Dla kosztów zakupów próbujemy przypisać koszty księgowe do projektów w pierwszej kolejności przez dekretacje zakupowe (purchase allocation). Jeśli jedna pozycja kosztowa dotyczy wielu projektów, koszt jest dzielony proporcjonalnie wg dekretacji i zapisany jako wiele rekordów przypisanych.",
+                        "children": [
+                            {
+                                "id": "purchase_matching_rule",
+                                "label": "Dopasowanie kosztu księgowego do dekretacji zakupowej",
+                                "type": "list",
+                                "body": [
+                                    "Wejście: raw_cost_line (Optima) + raw_purchase_allocation (GEM/DS).",
+                                    "Dopasowanie podstawowe: numer dokumentu/faktury + kwota (oraz opcjonalnie kontrahent) → kandydaci.",
+                                    "Jeżeli dopasowanie jest jednoznaczne: tworzymy proc_purchase_allocation (alokacje do projektów).",
+                                    "Jeżeli dopasowanie jest niejednoznaczne / brak dopasowania: koszt trafia do proc_cost_unallocated z powodem (reason_code) i instrukcją scope.",
+                                    "Każdy rekord wynikowy zachowuje cost_group (marżę) — obowiązkowo."
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "purchase_to_fact_rule",
+                                "label": "Zapis do FACT Costs",
+                                "type": "list",
+                                "body": [
+                                    "Z proc_purchase_allocation → FACT Costs: is_allocated=true, project_id ustawione, amount final, cost_group obowiązkowe.",
+                                    "Jeżeli koszt częściowo przypisany: przypisana część idzie jako allocated, reszta jako unallocated (pula) z instrukcją godzinowego podziału."
+                                ],
+                                "children": []
+                            }
+                        ]
+                    },
+
+                    {
+                        "id": "materials_costs_allocation",
+                        "label": "Koszty materiałów: dekretacje zużyć materiałowych → PROCESSED → FACT Costs",
+                        "type": "section",
+                        "body": "Zużycia materiałowe raportowane na projekty (GEM/DS) są traktowane jako bezpośrednie (cost_group=1), o ile dotyczą projektu. Jeżeli zużycie nie ma projektu lub referencja jest błędna, trafia do puli kosztów nieprzypisanych z ograniczonym scope.",
+                        "children": [
+                            {
+                                "id": "materials_to_fact_rule",
+                                "label": "Zapis do FACT Costs",
+                                "type": "list",
+                                "body": [
+                                    "Zużycie z projektem → FACT Costs: is_allocated=true, project_id ustawione, cost_group=1.",
+                                    "Zużycie bez projektu → FACT Costs: is_allocated=false, cost_group=1, hours_scope=by_department/by_product_group (zależnie co wiemy), z fallback do all_projects."
+                                ],
+                                "children": []
+                            }
+                        ]
+                    },
+
                     {
                         "id": "labor_costing",
                         "label": "Koszt pracy: worklog + wynagrodzenia → FACT Costs (labor)",
                         "type": "section",
-                        "body": "Wycena pracy powstaje przez połączenie: (A) raportów czasu pracy przypisanych do projektu (worklog) oraz (B) kosztu pracownika w danym period (wynagrodzenia).",
+                        "body": "Wycena pracy powstaje przez połączenie: (A) raportów czasu pracy przypisanych do projektu (worklog) oraz (B) kosztu pracownika w danym period (wynagrodzenia). Praca zawsze jest kosztem marży=1 (bezpośredni koszt produkcji).",
                         "children": [
                             {
                                 "id": "labor_inputs",
                                 "label": "Wejścia",
                                 "type": "list",
                                 "body": [
-                                    "RAW Worklog (GEM / raport operacyjny): wpisy czasu z procesem, działem, projektem/ref, maszyną, flagą poprawki (rework) itp.",
-                                    "RAW Salaries (Optima/HR extract): koszt pracownika per period (total_rate) + snapshoty nazw; traktujemy jako źródło kosztu pracy."
+                                    "RAW/PROC Worklog (GEM/DS): wpisy czasu z procesem, działem, projektem/ref, maszyną, flagą poprawki (rework) itp.",
+                                    "RAW Salaries (Optima/HR extract): koszt pracownika per period (total_rate) + snapshoty nazw; źródło kosztu pracy."
                                 ],
                                 "children": []
                             },
                             {
                                 "id": "labor_hourly_rate_rule",
-                                "label": "Reguła wyliczania stawki godzinowej (NOWA)",
+                                "label": "Reguła wyliczania stawki godzinowej (employee × period)",
                                 "type": "section",
                                 "body": [
                                     "Dla każdego (employee, period):",
                                     "1) Liczymy hours_project = suma hours_decimal ze wszystkich wpisów worklog, które są zakotwiczone do projektu (ref istnieje) w danym period.",
                                     "2) Bierzemy total_rate = koszt pracownika w period (z wynagrodzeń).",
                                     "3) Jeżeli hours_project > 0 → hourly_rate = total_rate / hours_project.",
-                                    "4) Jeżeli hours_project = 0 → hourly_rate jest nieokreślona, a całe total_rate trafia do „labor_unallocated” (koszty pracy do podziału) w danym period.",
-                                    "W MVP liczymy hours_decimal (nie minutes)."
+                                    "4) Jeżeli hours_project = 0 → hourly_rate jest nieokreślona, a całe total_rate trafia do puli kosztów pracy nieprzypisanych (labor_unallocated) w tym period.",
+                                    "MVP: używamy hours_decimal (nie minutes)."
                                 ],
                                 "children": []
                             },
                             {
                                 "id": "labor_valued_worklog",
-                                "label": "Wartościowanie wpisów worklog",
+                                "label": "Wartościowanie wpisów worklog (labor allocated)",
                                 "type": "list",
                                 "body": [
-                                    "Każdy wpis worklog z projektem dostaje cost_amount = hours_decimal * hourly_rate (wyliczoną per employee+period).",
+                                    "Każdy wpis worklog z projektem dostaje cost_amount = hours_decimal × hourly_rate (per employee+period).",
                                     "Do kosztu przenosimy klucze: period, employee, department, process, machine, project/ref, is_rework.",
-                                    "Wynik trafia do FACT Costs jako koszt typu „labor” i cost_group=1 (bezpośredni), o ile wpis dotyczy projektu."
+                                    "Wynik trafia do FACT Costs jako: is_allocated=true, source_type=worklog, cost_group=1."
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "labor_unallocated_pool",
+                                "label": "Praca nieprzypisana (labor unallocated)",
+                                "type": "list",
+                                "body": [
+                                    "Jeżeli pracownik ma total_rate > 0, a hours_project = 0 w danym period → tworzymy rekord FACT Costs z is_allocated=false (pula), cost_group=1.",
+                                    "Scope dla tej puli: preferencyjnie by_department (department_id pracownika), fallback by_product_group (jeśli da się wyznaczyć), ostatecznie all_projects.",
+                                    "Cel: nie rozdzielać pracy na projekty, które nie mają z tym związku (np. obcy dział)."
                                 ],
                                 "children": []
                             }
                         ]
-                    }
-                ]
-            },
-            {
-                "id": "final_products",
-                "label": "Produkty końcowe (output systemu)",
-                "type": "section",
-                "body": "W MVP celem jest przygotowanie dwóch tabel do raportowania i łączenia: FACT Income oraz FACT Costs. Marty/agregaty są opcjonalne i mogą nie powstać w pierwszej iteracji.",
-                "children": [
+                    },
+
                     {
-                        "id": "fact_income",
-                        "label": "FACT Income (wynik)",
-                        "type": "list",
-                        "body": [
-                            "Ziarnistość: 1 rekord = (period, project, ewentualnie split_key).",
-                            "Wartości: net_amount, currency (opcjonalnie qty).",
-                            "Wymiary: contractor/customer, project_group, department (opcjonalnie), referencje do dokumentów."
-                        ],
-                        "children": []
+                        "id": "overhead_allocation_rules",
+                        "label": "Koszty pośrednie i nieprzypisane: pule → narzut per godzinę",
+                        "type": "section",
+                        "body": "Koszty nieprzypisane do projektów (oraz koszty pośrednie marża>1) traktujemy jako pule do rozdziału po godzinach projektowych w ograniczonym zakresie (scope). System raportowy musi zwrócić: (A) koszty już przypisane oraz (B) pule nieprzypisane wraz z informacją: na ile godzin dzielimy i jaki jest narzut na 1h.",
+                        "children": [
+                            {
+                                "id": "scope_and_fallback",
+                                "label": "Scope godzin i fallback (anty-błąd galwanizerni)",
+                                "type": "list",
+                                "body": [
+                                    "Zasada: zawsze dzielimy po godzinach projektowych.",
+                                    "Scope preferowany (od najbardziej restrykcyjnego): by_process → by_machine → by_department → by_product_group → all_projects.",
+                                    "Jeżeli koszt ma department/process/machine → scope ogranicza kandydatów do projektów, które mają godziny projektowe w tym scope w danym period.",
+                                    "Dla administracji (marża=4): scope = all_projects (koszt dotyczy całej firmy/projektów) → narzut per 1h liczymy na bazie sumy wszystkich godzin projektowych w period.",
+                                    "Jeżeli w scope suma godzin = 0 → koszt trafia do review (do ręcznej decyzji) albo fallback do mniej restrykcyjnego scope."
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "reporting_requirement",
+                                "label": "Wymóg raportowy (MVP)",
+                                "type": "list",
+                                "body": [
+                                    "Raporty zawsze pobierają: (1) przypisane koszty per projekt oraz (2) koszty nieprzypisane jako pule z hours_divider i cost_per_hour.",
+                                    "Na tym etapie nie musimy materializować rozdziału puli na projekty (żeby uniknąć eksplozji rekordów). Możemy raportować narzut/h i stosować go w UI/analityce."
+                                ],
+                                "children": []
+                            }
+                        ]
                     }
                 ]
             }

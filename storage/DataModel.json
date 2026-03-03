@@ -622,7 +622,7 @@
         "description": "Surowe wpisy czasu pracy importowane z Clockify (lub podobnego źródła). Dane są spinane z pracownikiem, działem i okresem; opcjonalnie mapowane do projektu (projects) po sygnaturze taska.",
         "layer": "RAW",
         "pipeline": ["worklog", "costs"],
-        "domain": "PRODUKCJA",
+        "domain": "RAPORTY",
         "source": { "id": "clockify", "label": "Clockify → DS", "color": "#111827" },
         "grain": "one row per time entry",
         "status": "mvp",
@@ -671,7 +671,7 @@
         "description": "Ustrukturyzowany raport czasu pracy (docelowa postać do rozliczeń). Każdy wpis jest przypisany do procesu i działu, opcjonalnie do projektu oraz maszyny. Wspiera oznaczenie poprawek (rework).",
         "layer": "RAW",
         "pipeline": ["worklog", "costs"],
-        "domain": "PRODUKCJA",
+        "domain": "RAPORTY",
         "source": { "id": "gem", "label": "GEM/Excel → DS (processed)", "color": "#6B7280" },
         "grain": "one row per worklog entry",
         "status": "mvp",
@@ -717,7 +717,7 @@
         "description": "Ustrukturyzowany raport zużycia materiałów przypisany do projektu (dekretacja). Wpis może być powiązany z procesem, maszyną i (opcjonalnie) z wpisem czasu pracy. To jest warstwa RAW przed wyceną i faktami kosztowymi.",
         "layer": "RAW",
         "pipeline": ["materials", "costs"],
-        "domain": "PRODUKCJA",
+        "domain": "RAPORTY",
         "source": { "id": "gem", "label": "GEM/Excel → DS", "color": "#6B7280" },
         "grain": "one row per material usage entry",
         "status": "mvp",
@@ -759,7 +759,7 @@
         "description": "Ustrukturyzowana dekretacja zakupów (materiały/usługi) do konkretnego projektu. Dane pochodzą z GEM/Excel i służą jako wejście do rozliczeń kosztów projektu przed finalnymi fact_cost.",
         "layer": "RAW",
         "pipeline": ["costs"],
-        "domain": "PROJEKTY",
+        "domain": "RAPORTY",
         "source": { "id": "gem", "label": "GEM/Excel → DS", "color": "#6B7280" },
         "grain": "one row per allocated purchase line",
         "status": "mvp",
@@ -786,7 +786,7 @@
             { "name": "invoice_no", "type": "string", "description": "Numer faktury (opcjonalnie).", "required": false },
 
             { "name": "employee_id", "type": "fk:dim_employee", "description": "Osoba, która zdekretowała zakup (GEM user).", "required": true },
-
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
             { "name": "notes", "type": "text", "description": "Uwagi (opcjonalnie).", "required": false },
 
             { "name": "is_stock", "type": "bool", "description": "Czy zakup dotyczy magazynu (czy_magazyn).", "required": true },
@@ -799,7 +799,7 @@
         "table_name": "proc_worklog_valued",
         "label": "Praca – wycenione wpisy czasu (processed)",
         "description": "Wycena kosztu pracy na poziomie pojedynczego wpisu worklog. Powstaje z raw_worklog oraz raw_salary przez wyliczenie stawki godzinowej per pracownik i okres (tylko na podstawie godzin projektowych). Zasila docelowe koszty projektów.",
-        "layer": "FACT",
+        "layer": "PROCESSED",
         "pipeline": ["worklog", "costs"],
         "domain": "FINANSE",
         "source": { "id": "ds", "label": "DS (processed)", "color": "#16A34A" },
@@ -831,7 +831,7 @@
             { "name": "is_rework", "type": "bool", "description": "Czy poprawka/rework.", "required": true },
 
             { "name": "hours", "type": "decimal", "description": "Czas wpisu (min).", "required": true },
-
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
             { "name": "hour_rate", "type": "decimal", "description": "Stawka godzinowa wyliczona dla (employee,period) na bazie godzin projektowych.", "required": true },
             { "name": "cost_amount", "type": "decimal", "description": "Koszt wpisu: minutes/60 * hour_rate.", "required": true },
             { "name": "currency", "type": "string", "description": "Waluta (np. PLN).", "required": true },
@@ -842,8 +842,202 @@
         "notes": "Wycena liczona tylko dla wpisów z project_id != null. Dla kontroli: suma cost_amount per (employee,period) powinna być równa raw_salary.total_cost minus pula unallocated."
     },
     {
+        "table_name": "proc_purchase_allocation",
+        "label": "Zakupy: przypisanie kosztów → projekt (z metadanymi procesu/zasobu)",
+        "description": "Wynik dopasowania pozycji kosztowych z księgi (raw_cost_line) do dekretacji zakupów na projekty (raw_purchase_allocation). Rekord opisuje część kosztu przypisaną do projektu; opcjonalnie przenosi kotwice: dział/proces/maszyna/materiał dla późniejszych analiz i fallbacków.",
+        "layer": "PROCESSED",
+        "pipeline": ["costs", "allocation"],
+        "domain": "KOSZTY",
+        "source": { "id": "ds", "label": "DS (processed)", "color": "#16A34A" },
+        "grain": "one row per allocated amount from raw_cost_line to project via purchase allocation",
+        "status": "mvp",
+        "order_val": 500,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "periods", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": true },
+
+            { "type": "belongs_to", "table": "raw_cost_line", "fk": "raw_cost_line_id", "required": true },
+            { "type": "belongs_to", "table": "raw_purchase_allocation", "fk": "raw_purchase_allocation_id", "required": false },
+
+            { "type": "belongs_to", "table": "dim_counterparty", "fk": "contractor_id", "required": false },
+
+            { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": false },
+            { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": false },
+            { "type": "belongs_to", "table": "dim_machine", "fk": "machine_id", "required": false },
+            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": false }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "PK rekordu alokacji zakupowej.", "required": true },
+
+            { "name": "period_id", "type": "fk:periods", "description": "Okres rozliczeniowy (pivot).", "required": true },
+            { "name": "project_id", "type": "fk:projects", "description": "Projekt, do którego przypisano koszt.", "required": true },
+
+            { "name": "raw_cost_line_id", "type": "fk:raw_cost_line", "description": "Źródłowy wiersz kosztowy (Optima).", "required": true },
+            { "name": "raw_purchase_allocation_id", "type": "fk:raw_purchase_allocation", "description": "Źródłowa dekretacja zakupowa (jeśli była).", "required": false },
+
+            { "name": "contractor_id", "type": "fk:dim_counterparty", "description": "Dostawca/kontrahent (jeśli znany).", "required": false },
+
+            { "name": "department_id", "type": "fk:dim_department", "description": "Dział kosztu (jeśli znany / owner).", "required": false },
+            { "name": "process_id", "type": "fk:dim_process", "description": "Proces (jeśli zakup dotyczy procesu).", "required": false },
+            { "name": "machine_id", "type": "fk:dim_machine", "description": "Maszyna (jeśli zakup dotyczy zasobu, np. serwis).", "required": false },
+            { "name": "material_id", "type": "fk:dim_material", "description": "Materiał/usługa w sensie słownika zakupów (opcjonalnie).", "required": false },
+
+            { "name": "amount", "type": "decimal", "description": "Kwota kosztu przypisana do projektu (w walucie).", "required": true },
+            { "name": "currency", "type": "string", "description": "Waluta.", "required": true },
+
+            { "name": "cost_group", "type": "enum(direct,production_mgmt,project_service,admin,marketing,other)", "description": "Segment narzutu/marży – do raportowania i alokacji.", "required": true },
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
+            { "name": "match_type", "type": "enum(exact,split,manual)", "description": "Typ dopasowania.", "required": true },
+            { "name": "match_key", "type": "string", "description": "Klucz dopasowania (np. doc_no+amount).", "required": false }
+        ],
+        "notes": "department/process/machine/material są opcjonalne i służą do lepszego drill-down oraz do alokacji kosztów nieprzypisanych (fallback)."
+    },
+    {
+        "table_name": "proc_materials_allocation",
+        "label": "Alokacje kosztów materiałów → projekty",
+        "description": "Wynik dopasowania pozycji kosztowych z księgi (raw_cost_line) do raportów zużyć materiałowych na projekty (raw_materials_usage). Każdy rekord to część kosztu przypisana do projektu na podstawie zużycia.",
+        "layer": "PROCESSED",
+        "pipeline": ["costs", "materials", "allocation"],
+        "domain": "KOSZTY",
+        "source": { "id": "ds", "label": "DS (processed)", "color": "#16A34A" },
+        "grain": "one row per allocated amount from raw_cost_line to project via materials usage",
+        "status": "mvp",
+        "order_val": 510,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "periods", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": true },
+            { "type": "belongs_to", "table": "raw_cost_line", "fk": "raw_cost_line_id", "required": true },
+            { "type": "belongs_to", "table": "raw_materials_usage", "fk": "raw_materials_usage_id", "required": false },
+            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": false },
+            { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": false },
+            { "type": "belongs_to", "table": "dim_machine", "fk": "machine_id", "required": false },
+            { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": false }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "PK alokacji materiałowej.", "required": true },
+
+            { "name": "period_id", "type": "fk:periods", "description": "Okres rozliczeniowy (pivot).", "required": true },
+            { "name": "project_id", "type": "fk:projects", "description": "Projekt przypisania kosztu.", "required": true },
+
+            { "name": "raw_cost_line_id", "type": "fk:raw_cost_line", "description": "Źródłowy wiersz kosztowy z księgi (Optima).", "required": true },
+            { "name": "raw_materials_usage_id", "type": "fk:raw_materials_usage", "description": "Źródłowy raport zużycia (GEM/DS), jeśli dopasowano.", "required": false },
+
+            { "name": "material_id", "type": "fk:dim_material", "description": "Materiał, jeśli możliwe do ustalenia.", "required": false },
+            { "name": "process_id", "type": "fk:dim_process", "description": "Proces, jeśli raport wskazuje.", "required": false },
+            { "name": "machine_id", "type": "fk:dim_machine", "description": "Maszyna, jeśli raport wskazuje.", "required": false },
+            { "name": "department_id", "type": "fk:dim_department", "description": "Dział, jeśli raport wskazuje.", "required": false },
+
+            { "name": "amount", "type": "decimal", "description": "Kwota kosztu przypisana do projektu (w walucie).", "required": true },
+            { "name": "currency", "type": "string", "description": "Waluta kwoty.", "required": true },
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
+            { "name": "cost_group", "type": "enum(direct,production_mgmt,project_service,admin,marketing,other)", "description": "Grupa kosztu (\"marża\" / segment narzutu).", "required": true },
+
+            { "name": "match_type", "type": "enum(exact,split,manual)", "description": "Sposób dopasowania (dokładne / podział / ręczne).", "required": true },
+            { "name": "match_key", "type": "string", "description": "Klucz dopasowania (np. doc_no+material+amount) – pomoc diagnostyczna.", "required": false }
+        ],
+        "notes": "Tu alokacja jest napędzana zużyciem. Jeśli koszt materiałów w księdze dotyczy wielu projektów, generujesz split na podstawie udziałów/ilości z raw_materials_usage."
+    },
+    {
+        "table_name": "proc_cost_unallocated",
+        "label": "Koszty nieprzypisane do projektów",
+        "description": "Kolejka wierszy kosztowych z księgi (raw_cost_line), które nie zostały w pełni przypisane do projektów przez zakupowe lub materiałowe reguły alokacji. Służy do audytu i ręcznego domykania okresu.",
+        "layer": "PROCESSED",
+        "pipeline": ["costs", "allocation"],
+        "domain": "KOSZTY",
+        "source": { "id": "ds", "label": "DS (processed)", "color": "#16A34A" },
+        "grain": "one row per raw_cost_line not fully allocated (may represent remaining amount)",
+        "status": "mvp",
+        "order_val": 520,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "periods", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "raw_cost_line", "fk": "raw_cost_line_id", "required": true }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "PK rekordu nieprzypisanego kosztu.", "required": true },
+
+            { "name": "period_id", "type": "fk:periods", "description": "Okres rozliczeniowy (pivot).", "required": true },
+            { "name": "raw_cost_line_id", "type": "fk:raw_cost_line", "description": "Wiersz kosztowy, którego nie udało się przypisać w 100%.", "required": true },
+
+            { "name": "unallocated_amount", "type": "decimal", "description": "Kwota nieprzypisana (pełna lub pozostałość po częściowej alokacji).", "required": true },
+            { "name": "currency", "type": "string", "description": "Waluta kwoty.", "required": true },
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
+            { "name": "allocation_channel", "type": "enum(purchase,materials,other)", "description": "Kanał, którym próbowano alokować (zakupy / materiały / inne).", "required": true },
+            { "name": "reason_code", "type": "enum(no_match,amount_mismatch,split_required,duplicate_candidates,missing_reference,manual_hold,other)", "description": "Kod powodu nieprzypisania.", "required": true },
+
+            { "name": "status", "type": "enum(new,in_review,resolved,ignored)", "description": "Status obsługi w controllingu.", "required": true },
+            { "name": "resolution_note", "type": "text", "description": "Notatka jak rozwiązano / co zrobić dalej.", "required": false }
+        ],
+        "notes": "Ta tabela jest SSOT dla braków alokacji. Pozwala zamykać okresy i kontrolować, czy wszystkie koszty zostały przypisane do projektów albo świadomie zaklasyfikowane jako overhead."
+    },
+    {
+        "table_name": "fact_costs",
+        "label": "FACT: Koszty (alokowane i niealokowane)",
+        "description": "SSOT kosztów do raportów. Zawiera zarówno koszty już przypisane do projektu (is_allocated=true), jak i koszty nieprzypisane (is_allocated=false) wraz z instrukcją: po jakich godzinach projektowych wolno je rozdzielić (scope + filtr). Fallback dla kosztów niealokowanych: product_group → department → all_projects.",
+        "layer": "FACT",
+        "pipeline": ["costs", "allocation"],
+        "domain": "KOSZTY",
+        "source": { "id": "ds", "label": "DS (facts)", "color": "#16A34A" },
+        "grain": "one row per cost item (allocated cost per project OR unallocated cost pool with hour-scope instruction)",
+        "status": "mvp",
+        "order_val": 900,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "periods", "fk": "period_id", "required": true },
+
+            { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": false },
+
+            { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": false },
+            { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": false },
+            { "type": "belongs_to", "table": "dim_machine", "fk": "machine_id", "required": false },
+            { "type": "belongs_to", "table": "dim_employee", "fk": "employee_id", "required": false },
+
+            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": false },
+            { "type": "belongs_to", "table": "dim_counterparty", "fk": "contractor_id", "required": false },
+
+            { "type": "belongs_to", "table": "dim_product_groups", "fk": "product_group_id", "required": false }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "PK rekordu FACT.", "required": true },
+
+            { "name": "period_id", "type": "fk:periods", "description": "Okres rozliczeniowy (pivot).", "required": true },
+
+            { "name": "is_allocated", "type": "bool", "description": "Czy koszt jest przypisany do konkretnego projektu (true) czy jest pulą do podziału (false).", "required": true },
+
+            { "name": "source_type", "type": "enum(purchase,materials,worklog,overhead,manual,other)", "description": "Skąd pochodzi koszt (kanał).", "required": true },
+            { "name": "source_ref_table", "type": "string", "description": "Tabela źródłowa rekordu (np. raw_cost_line / proc_purchase_allocation).", "required": false },
+            { "name": "source_ref_id", "type": "string", "description": "Id rekordu źródłowego (diagnostyka/audyt).", "required": false },
+
+            { "name": "cost_group", "type": "enum(direct,production_mgmt,project_service,admin,marketing,other)", "description": "Segment marży / grupa kosztu do raportowania i narzutów.", "required": true },
+
+            { "name": "amount", "type": "decimal", "description": "Kwota kosztu. Dla is_allocated=true: final; dla is_allocated=false: pula do podziału.", "required": true },
+
+            { "name": "project_id", "type": "fk:projects", "description": "Projekt. Wymagany gdy is_allocated=true.", "required": false },
+
+            { "name": "department_id", "type": "fk:dim_department", "description": "Dział (hak analityczny i scope alokacji).", "required": false },
+            { "name": "process_id", "type": "fk:dim_process", "description": "Proces (jeśli znany).", "required": false },
+            { "name": "machine_id", "type": "fk:dim_machine", "description": "Maszyna (jeśli znana).", "required": false },
+            { "name": "employee_id", "type": "fk:dim_employee", "description": "Pracownik (jeśli dotyczy pracy).", "required": false },
+
+            { "name": "material_id", "type": "fk:dim_material", "description": "Materiał/usługa (jeśli dotyczy).", "required": false },
+            { "name": "contractor_id", "type": "fk:dim_counterparty", "description": "Dostawca/kontrahent (jeśli znany).", "required": false },
+
+            { "name": "product_group_id", "type": "fk:dim_product_groups", "description": "Grupa produktowa. Ostateczny fallback ograniczenia alokacji kosztów niealokowanych.", "required": false },
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
+            { "name": "hours_divider", "type": "decimal", "description": "Tylko dla is_allocated=false: suma godzin projektowych użyta jako mianownik (dla szybkich raportów).", "required": false },
+            { "name": "cost_per_hour", "type": "decimal", "description": "Tylko dla is_allocated=false: amount / hours_divider (narzut na godzinę w scope).", "required": false },
+            { "name": "candidates_count", "type": "int", "description": "Tylko dla is_allocated=false: liczba projektów biorących udział w podziale (diagnostyka).", "required": false },
+
+            { "name": "alloc_status", "type": "enum(new,in_review,ready,allocated,ignored)", "description": "Status obsługi kosztu niealokowanego (controlling).", "required": false },
+            { "name": "alloc_note", "type": "text", "description": "Notatka controllingu / instrukcja ręczna (opcjonalnie).", "required": false }
+        ],
+        "notes": "Reguła: koszty niealokowane (is_allocated=false) zawsze dzielone po godzinach projektowych w obrębie scope (process/machine/department/product_group/all_projects). product_group_id jest ostatecznym fallback ograniczenia kandydatów. Raporty pobierają zarówno koszty przypisane (is_allocated=true), jak i pule (is_allocated=false) z cost_per_hour i hours_divider."
+    },
+    {
         "table_name": "fact_income",
-        "label": "Przychody – SSOT per projekt",
+        "label": "FACT : Przychody per projekt",
         "description": "Wynikowa tabela przychodów: każda pozycja jest w 100% przypisana do projektu. Powstaje przez procesowanie raw_sales_line (przypisanie 1:1 lub podział jednej pozycji na wiele projektów). To główna tabela do raportowania przychodów.",
         "layer": "FACT",
         "pipeline": ["income"],
@@ -855,6 +1049,7 @@
         "ui": { "component": "card", "color_override": null },
         "relations": [
             { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "dim_project_groups", "fk": "project_group_id", "required": true },
             { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": true },
             { "type": "belongs_to", "table": "dim_contractor", "fk": "contractor_id", "required": false },
             { "type": "belongs_to", "table": "raw_sales_line", "fk": "raw_sales_line_id", "required": true }
@@ -863,6 +1058,8 @@
             { "name": "id", "type": "pk", "description": "Klucz rekordu przychodu w DS.", "required": true },
 
             { "name": "period_id", "type": "fk:dim_period", "description": "Okres (miesiąc) – pivot raportowania.", "required": true },
+            { "name": "project_group_id", "type": "fk:dim_project_groups", "description": "Wskazanie grupy projektowej / produktowej", "required": true },
+
             { "name": "project_id", "type": "fk:projects", "description": "Projekt, do którego w 100% przypisano przychód.", "required": true },
 
             { "name": "contractor_id", "type": "fk:dim_contractor", "description": "Klient/kontrahent (jeśli zmapowany).", "required": false },
