@@ -5,7 +5,7 @@
     $type = $node['type'] ?? 'section';
 
     $visited = is_array($visited ?? null) ? $visited : [];
-    $maxDepth = is_numeric($maxDepth ?? null) ? (int) $maxDepth : 30;
+    $maxDepth = is_numeric($maxDepth ?? null) ? (int) $maxDepth : 10;
 
     $nodeId = $node['id'] ?? null;
     $hasCycle = $nodeId && in_array($nodeId, $visited, true);
@@ -29,11 +29,26 @@
         @switch($type)
 
             @case('section')
-                @include('components.contract.section', ['node' => $node, 'level' => $level, 'visited' => $nextVisited, 'maxDepth' => $maxDepth])
+                @include('components.contract.section', [
+                    'node' => $node,
+                    'level' => $level,
+                    'visited' => $nextVisited ?? ($visited ?? []),
+                    'maxDepth' => $maxDepth ?? 10,
+                ])
                 @break
 
             @case('list')
                 @include('components.contract.list', ['node' => $node, 'level' => $level, 'visited' => $nextVisited, 'maxDepth' => $maxDepth])
+                @break
+
+            @case('rule')
+                @include('components.contract.rule', [
+                    'title' => $node['label'] ?? null,
+                    'body' => $node['body'] ?? null,
+                    'level' => $level,
+                    'severity' => $node['severity'] ?? 'info',
+                    'nodeId' => $node['id'] ?? null,
+                ])
                 @break
 
             @case('ordered_list')
@@ -60,6 +75,9 @@
             @case('entity')
                 @include('components.contract.entity', ['node' => $node, 'level' => $level, 'visited' => $nextVisited, 'maxDepth' => $maxDepth])
                 @break
+
+            @case('void')
+                @break;
 
             @default
                 <pre class="bg-base-200 p-4 rounded overflow-x-auto text-sm">

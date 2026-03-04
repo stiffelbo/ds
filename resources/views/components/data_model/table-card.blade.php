@@ -1,4 +1,3 @@
-{{-- resources/views/components/data_model/table-card.blade.php --}}
 @php
     $t = is_array($table ?? null) ? $table : [];
 
@@ -55,16 +54,15 @@
     <div class="card-body gap-4">
 
         {{-- Header --}}
-        <div class="flex items-start justify-between gap-4">
-            <div class="min-w-0">
-                <div class="text-lg font-semibold leading-tight truncate">
-                    {{ $label }}
-                </div>
-                <div class="text-xs text-base-content/60 font-mono break-all mt-1">
-                    {{ $tableName }}
-                </div>
+        <div>
+            <div class="text-lg font-semibold leading-tight truncate">
+                {{ $label }}
             </div>
-
+            <div class="text-xs text-base-content/60 font-mono break-all mt-1">
+                {{ $tableName }}
+            </div>
+        </div>
+        <div>
             <div class="flex items-center gap-2 flex-wrap justify-end">
                 @if($layer)
                     <span class="badge {{ $layerBadge }} badge-outline text-xs" title="warstwa danych">
@@ -103,7 +101,7 @@
         @endif
 
         {{-- Meta --}}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="gap-3">
             @if($grain)
                 <div class="rounded-xl border border-base-300 bg-base-200/40 p-3" title="Co reprezentuje wiersz w tabeli">
                     <div class="text-xs uppercase tracking-wide text-base-content/60 mb-1">Grain</div>

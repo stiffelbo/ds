@@ -1,6 +1,6 @@
 {{-- components/contract/object.blade.php --}}
 
-<h3 class="font-semibold mb-3">
+<h3 class="font-semibold mb-3" id="{{$node['id']}}">
     {{ $node['label'] ?? '' }}
 </h3>
 
@@ -9,7 +9,7 @@
         <tbody>
         @foreach($node['body'] ?? [] as $key => $value)
             <tr>
-                <td class="font-mono text-sm w-1/3">{{ $key }}</td>
+                <td class="font-mono text-sm w-1/5">{{ $key }}</td>
                 <td>
                     @if(is_array($value))
                         <pre class="text-xs bg-base-200 p-2 rounded">

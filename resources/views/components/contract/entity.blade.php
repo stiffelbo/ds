@@ -20,7 +20,7 @@
     $indentClass = $lvl >= 3 ? 'ml-10' : ($lvl === 2 ? 'ml-6' : ($lvl === 1 ? 'ml-2' : ''));
 @endphp
 
-<div class="card bg-base-100 shadow border border-base-300 {{ $indentClass }}">
+<div class="card bg-base-100 shadow border border-base-300 {{ $indentClass }}" id="{{$node['id']}}">
     <div class="relative">
         {{-- Header --}}
         <div class="flex items-start justify-between gap-4 p-4">

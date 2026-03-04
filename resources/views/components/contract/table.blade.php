@@ -1,11 +1,11 @@
 {{-- components/contract/table.blade.php --}}
 
-<h3 class="font-semibold mb-3">
+<h3 class="font-semibold mb-3" id="{{$node['id']}}">
     {{ $node['label'] ?? '' }}
 </h3>
 
 @php
-    $rows = $node['body'] ?? [];
+    $rows = (isset($node['body']) && is_array($node['body'])) ? $node['body'] : [];
     $headers = !empty($rows) ? array_keys($rows[0]) : [];
 @endphp
 

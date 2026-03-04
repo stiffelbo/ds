@@ -1,7 +1,7 @@
 {
-    "contract_version": "2.0.0",
+    "contract_version": "3.0.0",
     "meta": {
-        "name": "Laravel DS – Kontrakt biznesowy (transformacje RAW → FACT)",
+        "name": "Laravel DS – Kontrakt biznesowy",
         "language": "pl",
         "rendering_hint": "Każdy węzeł ma {id,label,type,body,children}. Renderer może rekurencyjnie renderować label jako nagłówek, body jako opis i children jako podsekcje.",
         "sources": [
@@ -13,286 +13,950 @@
             { "id": "ds", "label": "DS (Laravel + MySQL)", "color": "#16A34A" }
         ],
         "definitions": {
-            "period_pivot": "Okres rozliczeniowy = miesiąc kalendarzowy. Wszystkie fakty (income/costs) są liczone i raportowane per period.",
-            "time_unit": "Godziny w formacie decimal (np. 1.50). Technicznie minuty są lepsze, ale w MVP trzymamy hours_decimal."
+            "period_pivot": "Okres rozliczeniowy = miesiąc kalendarzowy. Wszystkie fakty (income/costs) są liczone i raportowane per period."
         }
     },
-    "tree": {
-        "id": "business_contract_root",
-        "label": "Kontrakt biznesowy: transformacje RAW → FACT",
-        "type": "section",
-        "body": "Ten dokument opisuje reguły przetwarzania danych: od importów surowych (Optima/Clockify/GEM/Excel) przez normalizację i mapowania, aż do dwóch tabel wynikowych: FACT Income oraz FACT Costs. Model danych (tabele/kolumny) jest opisany w osobnym kontrakcie MvpDataModel.",
-        "children": [
+    "tree": [
             {
-                "id": "ssot_goal",
-                "label": "Cel biznesowy (SSOT)",
-                "type": "list",
-                "body": [
-                    "Jedno źródło prawdy (SSOT) dla: przychodów i kosztów na poziomie projektu/klienta/działu/pracownika/procesu/maszyny/materiału.",
-                    "Możliwość policzenia marży/profitability per pivoty zarządcze w ujęciu miesięcznym (period).",
-                    "Audytowalność: każdy rekord w FACT ma wskazanie na źródło (raw) lub regułę/operację przeliczeniową."
-                ],
-                "children": []
-            },
-            {
-                "id": "pipelines_overview",
-                "label": "Pipeline’y i ogólny przepływ",
-                "type": "section",
-                "body": [
-                    "1) Import RAW (źródła zewnętrzne) →",
-                    "2) Normalizacja i dopięcie kluczy (period, kontrahent, projekt, pracownik, dział, proces, maszyna, materiał) →",
-                    "3) Mapowania/reguły (w tym split pozycji, walidacje, klasyfikacje) →",
-                    "4) Wyliczenia (np. stawka godzinowa, wartościowanie) →",
-                    "5) Publikacja do FACT: income i costs."
-                ],
+                "id": "meta",
+                "label": "Meta i konwencje renderowania",
+                "type": "void",
+                "body": "Definicje wspólne: period pivot, jednostki czasu, słownik pojęć, konwencje identyfikatorów, wymagania dla audytu i rekalkulacji.",
                 "children": [
                     {
-                        "id": "audit_and_rerun",
-                        "label": "Audyt i rekalkulacja",
+                        "id": "meta_definitions",
+                        "label": "Definicje i skróty",
                         "type": "list",
                         "body": [
-                            "RAW nigdy nie jest „poprawiany” przez reguły — RAW to zapis importu.",
-                            "Zmiana reguł/mapowań powoduje ponowne przeliczenie FACT dla wskazanego period.",
-                            "Każdy FACT ma klucze do: period oraz wskaźnik pochodzenia (raw_reference / calc_rule_reference)."
+                            "period_id jako batch (miesiąc) i jedyny trigger rekalkulacji.",
+                            "margin_level jako obowiązkowa warstwa kosztowa w FACT.",
+                            "scope/level overhead: process, department, project_group, all.",
+                            "źródła danych: Optima/Clockify/GEM/Excel/DS."
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "meta_rendering_contract",
+                        "label": "Kontrakt renderowania (Blade)",
+                        "type": "list",
+                        "body": [
+                            "Każdy węzeł ma: id, label, type, body, children.",
+                            "Renderer rekurencyjny: label→nagłówek, body→opis/lista, children→podsekcje.",
+                            "type wspierane: section, list, table, warning, rule, checklist."
                         ],
                         "children": []
                     }
                 ]
             },
+        {
+            "id": "ds_application_layer",
+            "label": "Warstwa aplikacyjna DS",
+            "type": "section",
+            "body": "DS jest aplikacją controllingową (Laravel), która zarządza pipeline danych oraz udostępnia interfejs administracyjny do zarządzania mapowaniami, alokacjami i raportami operacyjnymi. System nie jest narzędziem wizualizacji BI – jego rolą jest przygotowanie spójnych danych do raportowania.",
+            "children": [
+                {
+                    "id": "ds_application_capabilities",
+                    "label": "Funkcje aplikacyjne DS",
+                    "type": "list",
+                    "body": [
+                        "Interfejs administracyjny do zarządzania wymiarami (projekty, zasoby, procesy, grupy projektowe).",
+                        "Narzędzia do importu danych ze źródeł (Optima, Jira, Clockify, Excel).",
+                        "Moduły formularzy do raportowania zdarzeń operacyjnych (np. worklog, zużycia materiałów).",
+                        "Narzędzia do mapowania danych i obsługi wyjątków (review queue).",
+                        "Mechanizmy rekalkulacji danych per period (pipeline RAW → PROCESSED → FACT)."
+                    ],
+                    "children": []
+                },
+                {
+                    "id": "ds_access_control_and_logic",
+                    "label": "Kontrola dostępu i logika operacyjna",
+                    "type": "list",
+                    "body": [
+                        "System posiada role i kontrolę dostępu do operacji administracyjnych oraz raportowych.",
+                        "Logika biznesowa (np. walidacje danych, mapowania projektów, alokacje kosztów) realizowana jest w warstwie aplikacyjnej.",
+                        "Ownerzy obszarów (działy, procesy, grupy projektowe) mogą mieć przypisane odpowiedzialności w systemie."
+                    ],
+                    "children": []
+                },
+                {
+                    "id": "ds_reporting_interfaces",
+                    "label": "Interfejsy raportowe",
+                    "type": "list",
+                    "body": [
+                        "DS udostępnia API oraz bezpośredni dostęp do danych FACT dla narzędzi raportowych.",
+                        "Typowe narzędzia: Power BI, Excel, narzędzia analityczne.",
+                        "Raporty wizualne (dashboardy) są budowane w narzędziach BI, nie w DS."
+                    ],
+                    "children": []
+                },
+                {
+                    "id": "ds_not_bi_system",
+                    "label": "DS nie jest narzędziem wizualizacji",
+                    "type": "rule",
+                    "severity" : "warning",
+                    "body": "DS odpowiada za przygotowanie spójnego modelu danych oraz pipeline controllingu. Wizualizacja danych (dashboardy, wykresy, raporty zarządcze) powinna być realizowana w dedykowanych narzędziach BI takich jak Power BI lub Excel.",
+                    "children": []
+                }
+            ]
+        },
+
+        {
+            "id": "executive_overview",
+            "label": "Cel biznesowy i zakres DS",
+            "type": "section",
+            "body": "DS to warstwa controllingu zarządczego, która spina projekty (Jira), czas pracy (Clockify) oraz koszty/przychody (Optima) w jeden, spójny model raportowania marży. System nie zastępuje ERP/MES, tylko dostarcza wiarygodne wyniki finansowe per projekt, proces, dział i grupę projektową – w cyklu miesięcznym (period).",
+            "children": [
+                {
+                    "id": "ds_business_outcomes",
+                    "label": "Co dostajemy (MVP)",
+                    "type": "list",
+                    "body": [
+                        "Marża i wynik per projekt oraz per grupa projektowa (cost & revenue center).",
+                        "Koszt pracy per projekt (worklog → wartościowanie wynagrodzeń).",
+                        "Koszty zasobów per projekt (dokumenty kosztowe + alokacje) oraz baza pod rozliczanie zużyć materiałów.",
+                        "Narzuty/overhead liczone hour-based w scope: process → department (roll-up) → project_group → all.",
+                        "Jedno źródło prawdy (SSOT) do raportów zarządczych i odchyleń plan vs wykonanie (BOM)."
+                    ],
+                    "children": []
+                },
+                {
+                    "id": "ds_scope_boundaries",
+                    "label": "Granice systemu (co DS robi / czego nie robi)",
+                    "type": "list",
+                    "body": [
+                        "DS robi: integruje dane, normalizuje, mapuje i publikuje fakty do raportów controllingu (RAW → PROCESSED → FACT).",
+                        "DS robi: workflow dekretacji/alokacji kosztów dokumentowych (karta kosztów projektu w wersji cyfrowej).",
+                        "DS nie robi: pełnego ERP, księgi głównej ani zastępstwa księgowości.",
+                        "DS nie robi: pełnego MES/WMS (zużycia magazynowe mogą być raportowane jako 'materials worklog', ale nie jest to magazyn).",
+                        "DS nie jest narzędziem do zarządzania zadaniami – workflow i komentarze są w Jirze."
+                    ],
+                    "children": []
+                },
+                {
+                    "id": "ds_operational_requirements",
+                    "label": "Wymagania organizacyjne (minimum)",
+                    "type": "list",
+                    "body": [
+                        "Czas pracy: wpisy powinny być alokowane do projektu (Jira key) – wyjątki tylko dla przestojów/prac gospodarczych.",
+                        "Struktura organizacyjna: employee → department i działowe roll-up po poddrzewie (nie netto węzła).",
+                        "Procesy i zasoby: procesy mają ownerów obszaru oraz mapę dopuszczalnych zasobów (process → resources).",
+                        "Odpowiedzialność: ownerzy działów/procesów/grup projektowych domykają wyjątki i dbają o jakość danych; nie zastępują raportowania operacyjnego."
+                    ],
+                    "children": []
+                },
+                {
+                    "id": "ds_reporting_axes",
+                    "label": "Osie raportowania (jak zarząd patrzy na firmę)",
+                    "type": "list",
+                    "body": [
+                        "Oś biznesowa: project_group → projekty → marża i wynik.",
+                        "Oś organizacyjna: department (roll-up) → koszty pracy i overhead.",
+                        "Oś technologiczna: process → koszty etapów (labor/materials) i analiza odchyleń.",
+                        "Oś czasu: period (miesiąc) jako cykl zamknięcia i rekalkulacji."
+                    ],
+                    "children": []
+                }
+            ]
+        },
+
             {
-                "id": "income_rules",
-                "label": "Reguły: przychody (RAW → FACT Income)",
+                "id": "dim_layer",
+                "label": "Warstwa DIM (wymiary i słowniki aplikacji)",
                 "type": "section",
-                "body": "Celem jest 100% zakotwiczenie przychodu w projekcie (project). Jeżeli pozycja sprzedażowa dotyczy wielu projektów — rozbijamy ją do granulatu per projekt (split).",
+                "body": "Wymiary są fundamentem spójnego pivotowania danych. Szczególny nacisk: DIM Projects (klucze, grupy, mapowania do działów/procesów).",
                 "children": [
                     {
-                        "id": "income_inputs",
-                        "label": "Wejścia (RAW)",
-                        "type": "list",
-                        "body": [
-                            "RAW Sales (Optima): pozycje sprzedażowe, daty dokumentu, kontrahent, wartości netto/koszt/profit (jeśli dostępne).",
-                            "Dodatkowe wskazania projektowe (Excel/DS): mapowanie/splity pozycji na projekty, jeśli Optima nie niesie jednoznacznego klucza projektu."
-                        ],
-                        "children": []
-                    },
-                    {
-                        "id": "income_period_assignment",
-                        "label": "Przypisanie do okresu (period)",
-                        "type": "list",
-                        "body": [
-                            "Domyślnie period wynika z document_date (data dokumentu).",
-                            "Jeżeli biznesowo przychód ma się liczyć w shipping_date lub settlement_date — dopuszczamy przełącznik reguły na poziomie pipeline (konfiguracja).",
-                            "W MVP: domyślnie document_date."
-                        ],
-                        "children": []
-                    },
-                    {
-                        "id": "income_project_anchor",
-                        "label": "Zakotwiczenie przychodu w projekcie",
-                        "type": "list",
-                        "body": [
-                            "Reguła 1 (prosta): jeżeli RAW Sales ma bezpośredni identyfikator projektu/ref → mapujemy 1:1 do project.",
-                            "Reguła 2 (split): jeżeli 1 pozycja sprzedażowa dotyczy wielu projektów → tworzymy N rekordów FACT Income, każdy z udziałem (pct) lub ilością (qty) tak, aby suma = 100% pozycji źródłowej.",
-                            "Reguła 3 (manual override): jeśli nie da się ustalić projektu automatycznie, pozycja trafia do kolejki „unassigned income” do ręcznego przypisania/splita."
-                        ],
-                        "children": []
-                    },
-                    {
-                        "id": "income_fact_output",
-                        "label": "Wynik (FACT Income) – semantyka",
-                        "type": "list",
-                        "body": [
-                            "1 rekord = przychód przypisany do (period, project).",
-                            "Rekord niesie także wymiary do raportowania: contractor/customer, department (jeżeli wynika z projektu lub mapowania), product/material (opcjonalnie).",
-                            "Wartość: net_amount (netto). Dodatkowo można trzymać qty/currency i referencje do dokumentu."
-                        ],
-                        "children": []
-                    }
-                ]
-            },
-            {
-                "id": "costs_rules",
-                "label": "Reguły: koszty (RAW → PROCESSED → FACT Costs)",
-                "type": "section",
-                "body": "Koszty klasyfikujemy zawsze wg „marży” (cost_group). Każdy koszt (bez wyjątku) ma przypisaną marżę/poziom zarządczy. Koszty dzielą się na bezpośrednie (marża=1: praca, materiały, zużycia projektowe) oraz pośrednie (marża>1), które wymagają alokacji po godzinach projektowych w kontrolowanym zakresie (scope) tak, aby np. koszty Galwanizerni nie obciążały projektów, które nie korzystały z Galwanizerni.",
-                "children": [
-                    {
-                        "id": "cost_groups_margin",
-                        "label": "Klasyfikacja kosztów wg „marży” (poziomy)",
-                        "type": "list",
-                        "body": [
-                            "1: koszty bezpośrednie produkcji (praca, materiały, zużycia projektowe).",
-                            "2: koszt zarządu produkcji (nadzór, planowanie, utrzymanie).",
-                            "3: koszt obsługi projektów (PM/AM, koordynacja).",
-                            "4: koszty administracji (backoffice).",
-                            "5: koszty marketingu / sprzedaży (opcjonalnie).",
-                            "Reguła: pole „marża”/klasyfikacja kosztu jest obowiązkowa w RAW/PROCESSED/FACT (cost_group). Praca zawsze ma cost_group=1."
-                        ],
-                        "children": []
-                    },
-
-                    {
-                        "id": "costs_sources_overview",
-                        "label": "Źródła kosztów i kanały przetwarzania",
-                        "type": "list",
-                        "body": [
-                            "RAW Cost Lines (Optima): księgowe wiersze kosztowe o różnym charakterze; wymagają przypisania marży (cost_group) i docelowo projektu lub puli do alokacji.",
-                            "RAW Purchase Allocation (GEM/DS): dekretacje zakupów do projektów (ilość, cena, nr faktury) – preferowany kanał bezpośredniego przypisania kosztu do projektu.",
-                            "RAW Materials Allocation (GEM/DS): dekretacje zużyć materiałowych na projekt – kanał bezpośredniego przypisania kosztu do projektu.",
-                            "RAW Salaries (Optima/HR extract): koszt pracownika per period (total_rate) – źródło kosztu pracy.",
-                            "RAW/PROC Worklog (GEM/DS): raporty czasu pracy z procesem/działem/maszyną/ref(projekt)/flagą poprawki.",
-                            "FACT Costs: SSOT kosztów do raportów, zawiera koszty przypisane oraz pule nieprzypisane z instrukcją alokacji (po godzinach)."
-                        ],
-                        "children": []
-                    },
-
-                    {
-                        "id": "direct_costs_rules",
-                        "label": "Koszty bezpośrednie (marża=1) — zasada",
+                        "id": "dim_period_contract",
+                        "label": "Period - Okres rozliczeniowy",
                         "type": "section",
-                        "body": "Koszty bezpośrednie (cost_group=1) powinny w idealnym scenariuszu być zakotwiczone do projektu. Jeśli nie są (np. brak ref), trafiają do puli do alokacji w scope ograniczonym do obszaru, którego dotyczą (proces/dział/grupa produktowa), a ostateczny fallback to all_projects.",
+                        "body": "Definicja period jako miesiąca, reguły wyznaczania period_id z dat dokumentów i wpisów czasu.",
                         "children": []
                     },
-
                     {
-                        "id": "purchase_costs_allocation",
-                        "label": "Koszty zakupów: RAW Cost Lines + dekretacje zakupów → PROCESSED → FACT Costs",
+                        "id": "dim_org_tree_contract",
+                        "label": "Struktura Organizacyjna (drzewo organizacyjne i roll-up kosztów)",
                         "type": "section",
-                        "body": "Dla kosztów zakupów próbujemy przypisać koszty księgowe do projektów w pierwszej kolejności przez dekretacje zakupowe (purchase allocation). Jeśli jedna pozycja kosztowa dotyczy wielu projektów, koszt jest dzielony proporcjonalnie wg dekretacji i zapisany jako wiele rekordów przypisanych.",
+                        "body": [
+                            "Drzewo organizacyjne (działy/MPK) jest podstawą do rozliczeń kosztów pracy i overhead.",
+                            "Kluczowa zasada: koszty i godziny liczymy względem poddrzewa (roll-up), a nie tylko 'netto' pojedynczego węzła działu."
+                        ],
                         "children": [
                             {
-                                "id": "purchase_matching_rule",
-                                "label": "Dopasowanie kosztu księgowego do dekretacji zakupowej",
+                                "id": "dim_org_tree_structure",
+                                "label": "Struktura drzewa (wymagania modelu)",
                                 "type": "list",
                                 "body": [
-                                    "Wejście: raw_cost_line (Optima) + raw_purchase_allocation (GEM/DS).",
-                                    "Dopasowanie podstawowe: numer dokumentu/faktury + kwota (oraz opcjonalnie kontrahent) → kandydaci.",
-                                    "Jeżeli dopasowanie jest jednoznaczne: tworzymy proc_purchase_allocation (alokacje do projektów).",
-                                    "Jeżeli dopasowanie jest niejednoznaczne / brak dopasowania: koszt trafia do proc_cost_unallocated z powodem (reason_code) i instrukcją scope.",
-                                    "Każdy rekord wynikowy zachowuje cost_group (marżę) — obowiązkowo."
+                                    "Każdy dział ma opcjonalny parent_department_id (null = korzeń).",
+                                    "Działy tworzą DAG bez cykli (w praktyce drzewo).",
+                                    "W raporcie i alokacjach operujemy na 'poddrzewie' danego działu (dział + wszystkie potomki).",
+                                    "Zmiana struktury jest dopuszczalna; przeliczenia wykonujemy per period_id (batch)."
                                 ],
                                 "children": []
                             },
                             {
-                                "id": "purchase_to_fact_rule",
-                                "label": "Zapis do FACT Costs",
-                                "type": "list",
-                                "body": [
-                                    "Z proc_purchase_allocation → FACT Costs: is_allocated=true, project_id ustawione, amount final, cost_group obowiązkowe.",
-                                    "Jeżeli koszt częściowo przypisany: przypisana część idzie jako allocated, reszta jako unallocated (pula) z instrukcją godzinowego podziału."
-                                ],
-                                "children": []
-                            }
-                        ]
-                    },
-
-                    {
-                        "id": "materials_costs_allocation",
-                        "label": "Koszty materiałów: dekretacje zużyć materiałowych → PROCESSED → FACT Costs",
-                        "type": "section",
-                        "body": "Zużycia materiałowe raportowane na projekty (GEM/DS) są traktowane jako bezpośrednie (cost_group=1), o ile dotyczą projektu. Jeżeli zużycie nie ma projektu lub referencja jest błędna, trafia do puli kosztów nieprzypisanych z ograniczonym scope.",
-                        "children": [
-                            {
-                                "id": "materials_to_fact_rule",
-                                "label": "Zapis do FACT Costs",
-                                "type": "list",
-                                "body": [
-                                    "Zużycie z projektem → FACT Costs: is_allocated=true, project_id ustawione, cost_group=1.",
-                                    "Zużycie bez projektu → FACT Costs: is_allocated=false, cost_group=1, hours_scope=by_department/by_product_group (zależnie co wiemy), z fallback do all_projects."
-                                ],
-                                "children": []
-                            }
-                        ]
-                    },
-
-                    {
-                        "id": "labor_costing",
-                        "label": "Koszt pracy: worklog + wynagrodzenia → FACT Costs (labor)",
-                        "type": "section",
-                        "body": "Wycena pracy powstaje przez połączenie: (A) raportów czasu pracy przypisanych do projektu (worklog) oraz (B) kosztu pracownika w danym period (wynagrodzenia). Praca zawsze jest kosztem marży=1 (bezpośredni koszt produkcji).",
-                        "children": [
-                            {
-                                "id": "labor_inputs",
-                                "label": "Wejścia",
-                                "type": "list",
-                                "body": [
-                                    "RAW/PROC Worklog (GEM/DS): wpisy czasu z procesem, działem, projektem/ref, maszyną, flagą poprawki (rework) itp.",
-                                    "RAW Salaries (Optima/HR extract): koszt pracownika per period (total_rate) + snapshoty nazw; źródło kosztu pracy."
-                                ],
-                                "children": []
-                            },
-                            {
-                                "id": "labor_hourly_rate_rule",
-                                "label": "Reguła wyliczania stawki godzinowej (employee × period)",
+                                "id": "dim_org_rollup_rule",
+                                "label": "Zasada roll-up: alokacja kosztów do rodzica",
                                 "type": "section",
-                                "body": [
-                                    "Dla każdego (employee, period):",
-                                    "1) Liczymy hours_project = suma hours_decimal ze wszystkich wpisów worklog, które są zakotwiczone do projektu (ref istnieje) w danym period.",
-                                    "2) Bierzemy total_rate = koszt pracownika w period (z wynagrodzeń).",
-                                    "3) Jeżeli hours_project > 0 → hourly_rate = total_rate / hours_project.",
-                                    "4) Jeżeli hours_project = 0 → hourly_rate jest nieokreślona, a całe total_rate trafia do puli kosztów pracy nieprzypisanych (labor_unallocated) w tym period.",
-                                    "MVP: używamy hours_decimal (nie minutes)."
-                                ],
-                                "children": []
+                                "body": "Jeśli koszt (np. wynagrodzenia, koszt pośredni) nie może zostać wiarygodnie przypisany do konkretnego działu-liścia, przypisujemy go do najbliższego rodzica, który spełnia warunki przypisania. To rodzic staje się 'scope' kosztu w danym period.",
+                                "children": [
+                                    {
+                                        "id": "dim_org_rollup_conditions",
+                                        "label": "Kiedy koszt 'idzie w górę' (przykłady warunków)",
+                                        "type": "list",
+                                        "body": [
+                                            "Brak jednoznacznego mapowania kosztu do działu (brak MPK / nieznane MPK).",
+                                            "Koszt dotyczy zespołu złożonego z wielu poddziałów (np. administracja wydziału).",
+                                            "Koszt jest wspólny (shared) i nie ma zasady podziału na poddziały na etapie źródła."
+                                        ],
+                                        "children": []
+                                    }
+                                ]
                             },
                             {
-                                "id": "labor_valued_worklog",
-                                "label": "Wartościowanie wpisów worklog (labor allocated)",
-                                "type": "list",
-                                "body": [
-                                    "Każdy wpis worklog z projektem dostaje cost_amount = hours_decimal × hourly_rate (per employee+period).",
-                                    "Do kosztu przenosimy klucze: period, employee, department, process, machine, project/ref, is_rework.",
-                                    "Wynik trafia do FACT Costs jako: is_allocated=true, source_type=worklog, cost_group=1."
-                                ],
-                                "children": []
+                                "id": "dim_org_hours_aggregation_rule",
+                                "label": "Zasada liczenia godzin: suma po poddrzewie",
+                                "type": "section",
+                                "body": "Dla rozliczeń (rate’y, overhead/h) godziny dla działu liczymy jako sumę godzin wszystkich projektów realizowanych przez pracowników z całego poddrzewa działu (dział + potomkowie). Nie używamy 'netto' godzin tylko z węzła nadrzędnego, bo to zafałszowuje rozliczenie.",
+                                "children": [
+                                    {
+                                        "id": "dim_org_hours_aggregation_details",
+                                        "label": "Konsekwencje dla worklog i wynagrodzeń",
+                                        "type": "list",
+                                        "body": [
+                                            "Jeżeli koszt wynagrodzeń jest przypisany do działu-rodzica, to dzielnikiem do wyliczenia stawki jest suma godzin projektowych całego poddrzewa.",
+                                            "Jeżeli dział-rodzic ma 0 godzin 'własnych', ale poddziały mają godziny, rozliczenie nadal działa poprawnie.",
+                                            "Jeżeli poddrzewo ma 0 godzin (brak czasu projektowego), koszt musi zostać przypięty do wyższego poziomu (kolejny rodzic) lub do globalnego scope."
+                                        ],
+                                        "children": []
+                                    }
+                                ]
                             },
                             {
-                                "id": "labor_unallocated_pool",
-                                "label": "Praca nieprzypisana (labor unallocated)",
+                                "id": "dim_org_snapshot_policy",
+                                "label": "Polityka snapshotów godzin i aktualności struktury",
+                                "type": "section",
+                                "body": "Nie utrzymujemy osobnej tabeli snapshotów godzin ani historycznej struktury organizacyjnej. Snapshot danych do podziału zapisujemy per wiersz alokacji kosztu zasobu. Zakładamy, że w momencie wprowadzania danych kosztowych (lub rekalkulacji per period) struktura organizacyjna jest aktualna i obowiązująca.",
+                                "children": [
+                                    {
+                                        "id": "dim_org_no_history_assumption",
+                                        "label": "Założenie operacyjne: struktura jest aktualna",
+                                        "type": "rule",
+                                        "severity" : "warning",
+                                        "body": "Wszystkie podziały kosztów wykonywane są względem aktualnej struktury działów i aktualnych przypisań employee→department. Nie modelujemy historycznych zmian struktury w ramach period_id.",
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "dim_org_snapshot_per_allocation_row",
+                                        "label": "Snapshot godzin per wiersz alokacji zasobu",
+                                        "type": "rule",
+                                        "severity" : "success",
+                                        "body": "Dla kosztów zasobów, które są dzielone wg godzin, zapisujemy snapshot danych użytych do wyliczenia podziału bezpośrednio w wierszu alokacji (PROCESSED): hours_total_in_scope, hours_target, allocation_ratio oraz amount_allocated. Dzięki temu wynik jest odtwarzalny bez osobnej tabeli snapshotów.",
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "dim_org_snapshot_min_fields",
+                                        "label": "Minimalne pola snapshotu (PROCESSED allocation row)",
+                                        "type": "list",
+                                        "body": [
+                                            "hours_total_in_scope (suma godzin w scope dla period)",
+                                            "hours_target (godziny jednostki docelowej: projekt/dział/proces w zależności od typu podziału)",
+                                            "allocation_ratio = hours_target / hours_total_in_scope",
+                                            "amount_source (kwota źródłowa podziału)",
+                                            "amount_allocated (kwota po podziale dla wiersza)",
+                                            "scope_level + scope keys (process/department/project_group/all)"
+                                        ],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "dim_org_snapshot_quality_gate",
+                                        "label": "Gate jakości: spójność snapshotu",
+                                        "type": "list",
+                                        "body": [
+                                            "hours_total_in_scope > 0 dla podziałów hour-based (w przeciwnym razie fallback do wyższego scope).",
+                                            "Suma amount_allocated po wszystkich wierszach podziału = amount_source (z tolerancją na rounding).",
+                                            "allocation_ratio w [0..1] i suma ratio = 1 (z tolerancją)."
+                                        ],
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "dim_org_mvp_requirements",
+                                "label": "Minimalne wymagania na MVP",
                                 "type": "list",
                                 "body": [
-                                    "Jeżeli pracownik ma total_rate > 0, a hours_project = 0 w danym period → tworzymy rekord FACT Costs z is_allocated=false (pula), cost_group=1.",
-                                    "Scope dla tej puli: preferencyjnie by_department (department_id pracownika), fallback by_product_group (jeśli da się wyznaczyć), ostatecznie all_projects.",
-                                    "Cel: nie rozdzielać pracy na projekty, które nie mają z tym związku (np. obcy dział)."
+                                    "DIM Department ma parent_department_id i brak cykli w danych.",
+                                    "Worklog ma przypisanie do employee_id, a employee_id mapuje się do department_id.",
+                                    "Zdefiniowana jest procedura dla kosztów bez działu (roll-up do rodzica / global).",
+                                    "Raporty liczą sumy godzin per department jako sumę po poddrzewie."
                                 ],
                                 "children": []
                             }
                         ]
                     },
-
                     {
-                        "id": "overhead_allocation_rules",
-                        "label": "Koszty pośrednie i nieprzypisane: pule → narzut per godzinę",
+                        "id": "dim_project_groups_business_semantics",
+                        "label": "Grupy projektowe - linie biznesu",
                         "type": "section",
-                        "body": "Koszty nieprzypisane do projektów (oraz koszty pośrednie marża>1) traktujemy jako pule do rozdziału po godzinach projektowych w ograniczonym zakresie (scope). System raportowy musi zwrócić: (A) koszty już przypisane oraz (B) pule nieprzypisane wraz z informacją: na ile godzin dzielimy i jaki jest narzut na 1h.",
+                        "body": "Grupy projektowe (project_group) reprezentują linie biznesowe / ośrodki wynikowe firmy. Służą do agregacji przychodów i kosztów projektów w celu oceny rentowności danej kategorii działalności.",
                         "children": [
                             {
-                                "id": "scope_and_fallback",
-                                "label": "Scope godzin i fallback (anty-błąd galwanizerni)",
+                                "id": "project_group_role",
+                                "label": "Rola grupy projektowej",
                                 "type": "list",
                                 "body": [
-                                    "Zasada: zawsze dzielimy po godzinach projektowych.",
-                                    "Scope preferowany (od najbardziej restrykcyjnego): by_process → by_machine → by_department → by_product_group → all_projects.",
-                                    "Jeżeli koszt ma department/process/machine → scope ogranicza kandydatów do projektów, które mają godziny projektowe w tym scope w danym period.",
-                                    "Dla administracji (marża=4): scope = all_projects (koszt dotyczy całej firmy/projektów) → narzut per 1h liczymy na bazie sumy wszystkich godzin projektowych w period.",
-                                    "Jeżeli w scope suma godzin = 0 → koszt trafia do review (do ręcznej decyzji) albo fallback do mniej restrykcyjnego scope."
+                                    "project_group jest ośrodkiem kosztu i przychodu (cost & revenue center).",
+                                    "projekty należą do jednej grupy projektowej.",
+                                    "raporty rentowności mogą być liczone per project_group.",
+                                    "jeśli koszt nie może być przypisany do konkretnego projektu, może być przypisany do project_group."
                                 ],
                                 "children": []
                             },
                             {
-                                "id": "reporting_requirement",
-                                "label": "Wymóg raportowy (MVP)",
+                                "id": "project_group_examples",
+                                "label": "Przykładowe grupy projektowe",
                                 "type": "list",
                                 "body": [
-                                    "Raporty zawsze pobierają: (1) przypisane koszty per projekt oraz (2) koszty nieprzypisane jako pule z hours_divider i cost_per_hour.",
-                                    "Na tym etapie nie musimy materializować rozdziału puli na projekty (żeby uniknąć eksplozji rekordów). Możemy raportować narzut/h i stosować go w UI/analityce."
+                                    "opakowania",
+                                    "uszlachetnienia",
+                                    "sztabki",
+                                    "monety",
+                                    "inne linie produktowe"
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "project_group_rollup_rule",
+                                "label": "Zasada roll-up kosztów do grupy projektowej",
+                                "type": "rule",
+                                "body": "Jeżeli koszt nie może być przypisany do konkretnego projektu, ale wiadomo że dotyczy danej linii biznesowej, może zostać przypisany do project_group. W raportach koszt ten jest następnie dzielony względem projektów należących do tej grupy (np. według godzin pracy lub przychodu).",
+                                "children": []
+                            },
+                            {
+                                "id": "project_group_vs_product_semantics",
+                                "label": "Rozdzielenie grupy projektowej od semantyki produktu",
+                                "type": "section",
+                                "body": "Grupa projektowa nie jest szczegółową definicją produktu. Jest kategorią biznesową służącą do agregacji kosztów i przychodów.",
+                                "children": [
+                                    {
+                                        "id": "product_semantics_examples",
+                                        "label": "Przykłady atrybutów produktu",
+                                        "type": "list",
+                                        "body": [
+                                            "waga monety (np. 1 oz, 2 oz)",
+                                            "typ wykończenia (proof, antique, itp.)",
+                                            "rodzaj opakowania (np. wkładka plastikowa, pudełko)",
+                                            "efigia / motyw graficzny",
+                                            "inne parametry techniczne emisji"
+                                        ],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "product_semantics_location",
+                                        "label": "Gdzie powinna być semantyka produktu",
+                                        "type": "list",
+                                        "body": [
+                                            "w atrybutach projektu (project attributes)",
+                                            "w tabelach produktowych lub metadatach projektu",
+                                            "nie w project_group"
+                                        ],
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "project_group_relation_to_org_tree",
+                                "label": "Relacja grup projektowych do drzewa organizacyjnego",
+                                "type": "list",
+                                "body": [
+                                    "department odpowiada za strukturę organizacyjną i roll-up kosztów operacyjnych.",
+                                    "project_group odpowiada za linie biznesowe i roll-up wyników.",
+                                    "raporty zarządcze mogą agregować dane w dwóch osiach: department oraz project_group."
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "project_group_relation_to_materials",
+                                "label": "Grupa projektowa jako template dla BOM",
+                                "type": "list",
+                                "body": [
+                                    "Tabela: rule_project_group_material",
+                                    "powiązania pozwalają na automatyczne generowanie BOM-ów dla projektów danej grupy",
+                                    "Pytanie?? czy to ma szanse współgrać, czy potrzeba osobnego DIM projects_bom_template",
+                                    "Pytanie?? czy grupa produktowa powinna przynaleźeć do danego działu?"
                                 ],
                                 "children": []
                             }
                         ]
+                    },
+                    {
+                        "id": "dim_projects_definition",
+                        "label": "Project",
+                        "type": "section",
+                        "body": "W DS projekt (Project) jest jednostką rozliczeniową kosztów i przychodów, a nie narzędziem do zarządzania zadaniami. Operacyjnie projekt jest wzorowany na Jira Issue (sygnatura, nazwa, klient, status, role, daty, ilości i ceny) i służy jako SSOT do spinania worklogów, kosztów materiałowych/zakupów oraz przychodów.",
+                        "children": [
+                            {
+                                "id": "project_is_and_is_not",
+                                "label": "Project: jest / nie jest",
+                                "type": "list",
+                                "body": [
+                                    "Project jest: obiektem kosztowo-przychodowym (cost & revenue object) i kotwicą raportowania marży.",
+                                    "Project jest: jednym rekordem w rejestrze projektów, mapowanym 1:1 do Jira Issue (jira_key).",
+                                    "Project nie jest: zadaniem (task) ani komentarzem/załącznikiem — te żyją w Jirze.",
+                                    "Project nie jest: działem organizacyjnym (department) — department opisuje kto pracuje, project opisuje nad czym pracuje."
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "project_jira_as_source",
+                                "label": "Jira jako źródło workflow i metadanych projektu",
+                                "type": "rule",
+                                "body": "Workflow (statusy, komentarze, załączniki, odpowiedzialności) pozostaje w Jirze. W DS przechowujemy tylko metadane potrzebne do controllingu oraz klucze integracyjne (jira_key, link).",
+                                "children": []
+                            },
+                            {
+                                "id": "project_group_role_in_project",
+                                "label": "Project_group jako ośrodek kosztu i przychodu",
+                                "type": "rule",
+                                "body": "Każdy projekt należy do jednej grupy projektowej (project_group), która reprezentuje linię biznesową / ośrodek wynikowy (cost & revenue center). Agregacje zarządcze są liczone per project oraz per project_group.",
+                                "children": []
+                            },
+                            {
+                                "id": "product_semantics_in_project_attributes",
+                                "label": "Semantyka produktu jako atrybuty projektu",
+                                "type": "list",
+                                "body": [
+                                    "Projekt mozę mieć dane zależne np: project_attributes które określają cechy fizyczne produktu",
+                                    "Cechy / atrybuty jako takie wymagały by stworzenia dodatkowego wymiaru dim_attributes",
+                                    "Project_group służy do kosztów i przychodów, a atrybuty projektu do opisu technicznego/handlowego."
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "project_usage_in_pipeline",
+                                "label": "Rola projektu w pipeline RAW → PROCESSED → FACT",
+                                "type": "list",
+                                "body": [
+                                    "FACT worklog i FACT resources zawsze kotwiczą koszty na project_id.",
+                                    "Przychody (FACT income) kotwiczą się na project_id.",
+                                    "Overhead jest przechowywany bez project_id jako koszyki odpowiedzialności (department/process/project_group/all) i używany do narzutów/h w raportach."
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "project_bom_planning_and_templates",
+                                "label": "BOM i plan kosztów projektu jako cyfrowa 'karta kosztów'",
+                                "type": "section",
+                                "body": "DS może zastąpić excelowe karty kosztów projektem BOM (plan) oraz zestawieniem wykonania. BOM działa jako plan zasobów i instrukcja dekretacyjna dla kosztów dokumentowych, a nie jako rejestr zużyć magazynowych.",
+                                "children": [
+                                    {
+                                        "id": "bom_template_strategy",
+                                        "label": "Strategia templatek BOM (MVP → docelowo)",
+                                        "type": "list",
+                                        "body": [
+                                            "MVP: project_group generuje domyślny BOM (draft) dla nowych projektów tej grupy.",
+                                            "Docelowo: osobny wymiar dim_bom_templates z wariantami; project_group wskazuje domyślny template.",
+                                            "Projekt ma własny BOM (kopię draftu), który może być edytowany pod konkretną realizację."
+                                        ],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "bom_plan_vs_actual",
+                                        "label": "Plan vs wykonanie",
+                                        "type": "list",
+                                        "body": [
+                                            "Plan (BOM): lista pozycji zasobów + ilości/ceny planowane + przypisanie do warstw margin_level.",
+                                            "Wykonanie: koszt rzeczywisty z dokumentów zakupowych (fact_costs_resources) oraz koszt pracy (fact_costs_worklog).",
+                                            "Raport porównuje: BOM (plan) vs FACT (actual) per project i per project_group."
+                                        ],
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "cost_documents_workflow_and_dekretacja",
+                                "label": "Dokumenty kosztowe: obieg, dekretacja i repo plików",
+                                "type": "section",
+                                "body": "DS może obsłużyć obieg dokumentów kosztowych jako proces: rejestr dokumentu → pliki → dekretacja (konta 4/5) → alokacja do projektu/BOM → publikacja do FACT. To zamienia excelową kartę kosztów w cyfrowy proces z notyfikacjami i odpowiedzialnością.",
+                                "children": [
+                                    {
+                                        "id": "purchase_documents_register",
+                                        "label": "Rejestr dokumentów zakupowych (purchase_documents/invoices + files)",
+                                        "type": "list",
+                                        "body": [
+                                            "Tabela dokumentów: purchase_documents lub invoices (nagłówek + pozycje).",
+                                            "Repo plików: invoices_files (PDF/JPG/scan) jako załączniki do dokumentu.",
+                                            "Statusy obiegu: imported → pending_review → dekreted → allocated → posted (przykład)."
+                                        ],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "dekretacja_accounts_4_5",
+                                        "label": "Dekretacja i mapowanie na konta 4/5",
+                                        "type": "rule",
+                                        "body": "Każda pozycja kosztowa może mieć przypisane konta księgowe (np. z planu kont: zespół 4 i 5) jako instrukcja dla księgowości. Mapowanie kont może wynikać z typu zasobu (dim_resource/material/vendor) i być nadpisywane per dokument/pozycję.",
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "responsibility_and_notifications",
+                                        "label": "Odpowiedzialność i notyfikacje",
+                                        "type": "list",
+                                        "body": [
+                                            "Dokument ma ownera (osoba odpowiedzialna za dekretację/alokację).",
+                                            "Notyfikacje: brak dekretacji, brak alokacji, niezgodność kwot, braki w danych.",
+                                            "Cel: zredukować chaos excelowych kart i ręcznego uzgadniania."
+                                        ],
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "project_worklog_relation",
+                                "label": "Relacja projektu z czasem pracy (worklog)",
+                                "type": "section",
+                                "body": "Projekt jest podstawowym punktem odniesienia dla ewidencji czasu pracy. Wpisy worklog powinny być przypisane do projektu (sygnatura projektu/Jira key), ponieważ stanowią podstawę do wyliczania kosztu pracy oraz dzielnik (pivot) dla alokacji kosztów pośrednich.",
+                                "children": [
+                                    {
+                                        "id": "project_worklog_requirement",
+                                        "label": "Wymóg przypisania czasu pracy do projektu",
+                                        "type": "rule",
+                                        "body": "Każdy wpis czasu pracy powinien być przypisany do projektu (project_id lub sygnatura Jira). Jest to podstawowy warunek umożliwiający przypisanie kosztu pracy do konkretnej realizacji oraz prawidłowe raportowanie marży projektu.",
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "worklog_structure_and_dimensions",
+                                        "label": "Struktura wpisu czasu pracy",
+                                        "type": "list",
+                                        "body": [
+                                            "Każdy wpis worklog ma przypisanego pracownika (employee_id) oraz okres rozliczeniowy (period_id).",
+                                            "Docelowo wpis powinien być przypisany do projektu (project_id).",
+                                            "W miarę możliwości wpis powinien mieć również przypisany proces technologiczny (process_id).",
+                                            "Pracownik jest powiązany z działem (department_id), co umożliwia agregację czasu pracy w strukturze organizacyjnej."
+                                        ],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "worklog_non_project_entries",
+                                        "label": "Wpisy bez projektu (wyjątki operacyjne)",
+                                        "type": "rule",
+                                        "body": "Wpisy czasu pracy bez projektu są dopuszczalne wyłącznie w uzasadnionych przypadkach operacyjnych, takich jak przestoje, szkolenia, prace administracyjne lub inne zdarzenia gospodarcze. Wpisy te nie są traktowane jako praca projektowa i nie generują kosztu przypisanego do konkretnej realizacji.",
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "worklog_hours_as_pivot",
+                                        "label": "Godziny pracy jako pivot dla alokacji kosztów",
+                                        "type": "rule",
+                                        "body": "Suma godzin z worklogu stanowi pivot (dzielnik) dla alokacji kosztów pośrednich. Koszty overhead są rozdzielane proporcjonalnie do czasu pracy przypisanego do projektów, procesów lub działów w danym okresie.",
+                                        "children": [
+                                            {
+                                                "id": "worklog_pivot_scope",
+                                                "label": "Zakres pivotu godzin",
+                                                "type": "list",
+                                                "body": [
+                                                    "Jeżeli koszt dotyczy procesu – pivotem jest suma godzin w tym procesie.",
+                                                    "Jeżeli koszt dotyczy działu – pivotem jest suma godzin całego poddrzewa działu (roll-up).",
+                                                    "Jeżeli koszt dotyczy grupy projektowej – pivotem jest suma godzin projektów w tej grupie.",
+                                                    "Jeżeli koszt ma charakter ogólny – pivotem jest suma wszystkich godzin projektowych w okresie."
+                                                ],
+                                                "children": []
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "id": "worklog_role_in_cost_accounting",
+                                        "label": "Rola worklogu w controllingu kosztów",
+                                        "type": "list",
+                                        "body": [
+                                            "Worklog umożliwia przypisanie kosztu pracy do projektu.",
+                                            "Worklog stanowi dzielnik dla alokacji kosztów pośrednich (overhead).",
+                                            "Worklog umożliwia analizę produktywności pracy per projekt, proces i dział.",
+                                            "Worklog pozwala porównać plan pracy (BOM projektu) z wykonaniem."
+                                        ],
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "project_materials_allocation_relation",
+                                "label": "Relacja projektu z alokacją materiałów (materials worklog)",
+                                "type": "section",
+                                "body": "Zużycia materiałów są raportowane podobnie jak czas pracy: jako rejestr zdarzeń zużycia (materials worklog) przypisanych do projektu i procesu. Ten rejestr jest podstawą do przypisania kosztu materiałowego do realizacji oraz do analizy kosztów etapów produkcji.",
+                                "children": [
+                                    {
+                                        "id": "materials_worklog_requirement",
+                                        "label": "Wymóg przypisania zużycia do projektu i procesu",
+                                        "type": "rule",
+                                        "body": "Każde zdarzenie zużycia materiału powinno być przypisane do projektu (project_id / jira_key) oraz – w miarę możliwości – do procesu (process_id). Bez tego nie da się wiarygodnie rozliczyć kosztu materiałowego per realizacja i per etap produkcji.",
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "materials_worklog_grain",
+                                        "label": "Granulat: pojedyncze zdarzenie zużycia",
+                                        "type": "list",
+                                        "body": [
+                                            "Jedno zdarzenie = zużycie konkretnego zasobu (resource_id) w konkretnym projekcie (project_id) i procesie (process_id).",
+                                            "Zdarzenie ma ilość (qty) i jednostkę (uom) spójną z dim_resource.",
+                                            "Zdarzenie ma datę/period (work_date → period_id) oraz osobę raportującą (reported_by).",
+                                            "Opcjonalnie: powiązanie z maszyną (machine_id) jeśli proces ma wiele maszyn."
+                                        ],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "materials_worklog_validation_rules",
+                                        "label": "Walidacje controllingowe (jakość danych)",
+                                        "type": "list",
+                                        "body": [
+                                            "Resource musi być oznaczony jako is_consumption_trackable=true, aby raportować zużycia.",
+                                            "Dla procesu można walidować dopuszczalne zasoby przez dim_process_resource (process_id × resource_id).",
+                                            "Qty > 0, poprawna jednostka, spójny period.",
+                                            "Braki mapowań (brak projektu/procesu/zasobu) trafiają do kolejki review zamiast do FACT."
+                                        ],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "materials_worklog_vs_purchase_docs",
+                                        "label": "Rozdzielenie: zużycie materiału ≠ faktura zakupu",
+                                        "type": "rule",
+                                        "body": "Materials worklog opisuje faktyczne zużycie w produkcji (granulat technologiczny). Dokumenty zakupowe opisują poniesiony wydatek (granulat finansowy). To dwa różne strumienie, które mogą się rozjeżdżać w czasie. DS utrzymuje oba i łączy je metodyką wyceny.",
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "materials_valuation_methods",
+                                        "label": "Wycena zużycia (koszt materiału na projekt/proces)",
+                                        "type": "list",
+                                        "body": [
+                                            "Metoda standardowa/ryczałtowa: cost_per_unit dla zasobu obowiązuje w zakresie od–do (jak w GEM).",
+                                            "Metoda uśredniona: cost_per_unit liczony z zakupów (np. moving average) i stosowany do zużyć.",
+                                            "Raport P&L per period może pokazywać koszty zakupów niezależnie od zużyć; koszt technologiczny procesu liczymy na zużyciach × cost_per_unit."
+                                        ],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "materials_worklog_output_to_facts",
+                                        "label": "Publikacja do FACT i użycie w raportach",
+                                        "type": "list",
+                                        "body": [
+                                            "Zdarzenia zużycia po wycenie tworzą koszt materiałowy przypisany do projektu i procesu (fact_costs_resources lub osobny fact_material_consumption).",
+                                            "Raporty projektu: direct material cost per project oraz per process.",
+                                            "Raporty procesu: koszt jednostkowy etapu i analiza odchyleń (normy vs wykonanie – jeśli dojdą expected_qty)."
+                                        ],
+                                        "children": []
+                                    },
+                                    {
+                                        "id": "materials_worklog_responsibility",
+                                        "label": "Odpowiedzialność i moduł raportowy",
+                                        "type": "list",
+                                        "body": [
+                                            "Raportowanie zużyć odbywa się post factum przez operatora/brygadzistę lub osobę rozliczającą produkcję.",
+                                            "DS udostępnia moduł raportowy z listą projektów/procesów i zasobów dopuszczalnych (dim_process_resource).",
+                                            "Notyfikacje: brak raportów zużyć dla procesu, zużycia poza listą dopuszczalnych zasobów, skrajne odchylenia ilości."
+                                        ],
+                                        "children": []
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "other_dims",
+                        "label": "Pozostałe wymiary (minimum)",
+                        "type": "list",
+                        "body": [
+                            "DIM Employee, DIM Process, DIM Machine, DIM Material, DIM Contractor/Customer.",
+                            "Minimalne klucze i reguły spójności powiązań (FK)."
+                        ],
+                        "children": []
+                    },
+                    {
+                        "id": "responsibility_model_org_and_process_owners",
+                        "label": "Model odpowiedzialności: organizacja i ownerzy procesów",
+                        "type": "section",
+                        "body": "Odpowiedzialność za spójność danych i domykanie wyjątków opieramy o strukturę organizacyjną oraz ownerów procesów. Owner nie zastępuje raportowania operacyjnego, tylko odpowiada za reguły, mapowania oraz zamykanie błędów jakości danych.",
+                        "children": [
+                            {
+                                "id": "process_owner_definition",
+                                "label": "Owner procesu (mistrz procesu / właściciel obszaru)",
+                                "type": "list",
+                                "body": [
+                                    "Odpowiada za: mapowanie proces→zasoby, walidację zużyć, normy (jeśli dojdą), poprawność klasyfikacji procesów.",
+                                    "Dostaje notyfikacje o: zużyciach poza listą zasobów procesu, brakach proces_id, anomaliach ilości."
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "department_owner_definition",
+                                "label": "Owner działu (kierownik / odpowiedzialny za obszar)",
+                                "type": "list",
+                                "body": [
+                                    "Odpowiada za: spójność employee→department, kompletność worklogu projektowego, rozwiązywanie wpisów 'gospodarczych'.",
+                                    "Dostaje notyfikacje o: brakach project_id tam gdzie wymagane, brakach mapowań pracowników, anomaliach godzin."
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "ownership_is_for_gates",
+                                "label": "Ownerzy jako mechanizm gate’ów jakości danych",
+                                "type": "rule",
+                                "body": "Ownerzy są przypięci do kolejek review i gate’ów jakości. Celem jest szybkie domykanie wyjątków bez ręcznego rozliczania w Excelu.",
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "id": "project_group_owner_definition",
+                        "label": "Owner grupy projektowej (linia biznesowa)",
+                        "type": "section",
+                        "body": "Grupa projektowa reprezentuje linię biznesową lub kategorię działalności firmy. Każda grupa projektowa powinna mieć przypisanego ownera odpowiedzialnego za wynik finansowy tej linii.",
+                        "children": [
+                            {
+                                "id": "project_group_owner_role",
+                                "label": "Rola ownera grupy projektowej",
+                                "type": "list",
+                                "body": [
+                                    "Odpowiada za rentowność projektów w danej grupie projektowej.",
+                                    "Nadzoruje spójność klasyfikacji projektów do grupy.",
+                                    "Analizuje wyniki finansowe per project_group (przychody, koszty, marża).",
+                                    "Współpracuje z PM-ami oraz koordynatorami projektów."
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "project_group_owner_candidates",
+                                "label": "Typowe role ownera",
+                                "type": "list",
+                                "body": [
+                                    "koordynator projektów",
+                                    "product manager",
+                                    "kierownik linii produktowej",
+                                    "dyrektor obszaru biznesowego"
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "project_group_internal_projects",
+                                "label": "Grupy projektowe dla projektów wewnętrznych",
+                                "type": "list",
+                                "body": [
+                                    "Project_group może reprezentować również inicjatywy wewnętrzne firmy.",
+                                    "Przykłady: marketing, B+R, rozwój technologii, budowa infrastruktury.",
+                                    "Pozwala to raportować koszty pracy i materiałów także dla projektów wewnętrznych.",
+                                    "Takie projekty nie mają przychodu, ale są ważne z punktu widzenia controllingu kosztów."
+                                ],
+                                "children": []
+                            },
+                            {
+                                "id": "project_group_vs_department",
+                                "label": "Rozdzielenie: project_group vs department",
+                                "type": "rule",
+                                "body": "Department opisuje strukturę organizacyjną firmy (kto wykonuje pracę). Project_group opisuje linię biznesową lub kategorię projektów (nad czym pracujemy i jaki jest wynik finansowy).",
+                                "children": []
+                            }
+                        ]
+                    }
+                ]
+            },
+
+            {
+                "id": "raw_layer",
+                "label": "Warstwa RAW (ingest i niezmienność)",
+                "type": "section",
+                "body": "Opis tabel RAW, ich pochodzenia oraz zasad walidacji wejściowej i wykrywania duplikatów.",
+                "children": [
+                    {
+                        "id": "raw_sources_catalog",
+                        "label": "Katalog źródeł i mapowanie na tabele RAW",
+                        "type": "table",
+                        "body": "Tabela mapująca: źródło → tabela RAW → klucz unikalności → podstawowe pola (daty, ref, kwoty).",
+                        "children": []
+                    },
+                    {
+                        "id": "raw_ingest_rules",
+                        "label": "Reguły importu RAW",
+                        "type": "list",
+                        "body": [
+                            "deduplikacja po kluczu źródłowym (source_id + external_id).",
+                            "walidacje minimalne (daty, kwoty, identyfikatory).",
+                            "przypisanie period_id na wejściu (jeśli możliwe) lub w Normalize."
+                        ],
+                        "children": []
+                    }
+                ]
+            },
+
+            {
+                "id": "processed_layer",
+                "label": "Warstwa PROCESSED (normalizacja, dopasowania, reguły)",
+                "type": "section",
+                "body": "Opis tabel pośrednich, które porządkują dane do faktów: dopinają project_id, margin_level i przygotowują koszty do publikacji.",
+                "children": [
+                    {
+                        "id": "processed_norm",
+                        "label": "Normalize (klucze DIM + period)",
+                        "type": "section",
+                        "body": "Reguły uzupełniania FK (project/employee/department/process) i obsługa braków (kolejka do mapowania).",
+                        "children": []
+                    },
+                    {
+                        "id": "processed_matching",
+                        "label": "Resolve (dopasowania i splity)",
+                        "type": "section",
+                        "body": "Reguły dopasowań: dokumenty kosztowe ↔ dekretacje; pozycje sprzedażowe ↔ projekty; splity na N projektów.",
+                        "children": [
+                            {
+                                "id": "matching_purchase_allocation",
+                                "label": "Dopasowanie zakupów (matching)",
+                                "type": "list",
+                                "body": [
+                                    "matching po numerze dokumentu, kwocie i opcjonalnie kontrahencie.",
+                                    "obsługa niejednoznaczności: oznaczenie do review / reguły rozstrzygające.",
+                                    "wynik: proc_* z już rozbitymi alokacjami."
+                                ],
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "id": "processed_classification",
+                        "label": "Klasyfikacja kosztów (margin_level)",
+                        "type": "section",
+                        "body": "Zasady obowiązkowego margin_level: skąd się bierze, jak jest walidowany, jak obsługujemy wyjątki.",
+                        "children": [
+                            {
+                                "id": "margin_level_rules",
+                                "label": "Reguły margin_level",
+                                "type": "list",
+                                "body": [
+                                    "margin_level obowiązkowe w PROCESSED i FACT.",
+                                    "worklog zawsze margin_level=1.",
+                                    "overhead: margin_level może być >1; zasady przypisania zależne od typu kosztu."
+                                ],
+                                "children": []
+                            }
+                        ]
+                    }
+                ]
+            },
+
+            {
+                "id": "facts_layer",
+                "label": "Warstwa FACT (SSOT do raportów zarządczych)",
+                "type": "section",
+                "body": "Docelowe tabele faktów i ich semantyka. Facts mają mieć gotowe dane kosztowe per row, zgodnie z granulatem źródła (gdzie ma to sens).",
+                "children": [
+                    {
+                        "id": "fact_income_contract",
+                        "label": "FACT Income",
+                        "type": "section",
+                        "body": "Reguły zakotwiczenia przychodu w (period, project), splity i wymagane referencje do dokumentów sprzedaży.",
+                        "children": []
+                    },
+                    {
+                        "id": "fact_costs_worklog_contract",
+                        "label": "FACT Costs – Worklog (koszt pracy)",
+                        "type": "section",
+                        "body": "Wartościowanie wpisów czasu: hours * hourly_rate; hourly_rate liczony per (employee, period) z kosztu wynagrodzeń / sumy godzin projektowych.",
+                        "children": [
+                            {
+                                "id": "worklog_rate_rule",
+                                "label": "Reguła hourly_rate (employee × period)",
+                                "type": "rule",
+                                "severity" : "warning",
+                                "body": "hourly_rate = total_rate / hours_project, gdzie hours_project to suma godzin tylko z wpisów zakotwiczonych do projektów w period.",
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "id": "fact_costs_resources_contract",
+                        "label": "FACT Costs – Resources (materiały/zakupy/usługi)",
+                        "type": "section",
+                        "body": "Tylko koszty bezpośrednio zaalokowane do projektów. Brak flag typu allocated/direct – tabela zawiera wyłącznie alokowane.",
+                        "children": []
+                    },
+                    {
+                        "id": "fact_overhead_costs_contract",
+                        "label": "FACT Overhead Costs (koszyki odpowiedzialności)",
+                        "type": "section",
+                        "body": "Overhead przechowywany bez project_id jako koszyki wg overhead_level: process/department/project_group/all + margin_level i amount; wykorzystywany do narzutów/h w raportach.",
+                        "children": [
+                            {
+                                "id": "overhead_scope_ladder",
+                                "label": "Drabinka scope/level overhead",
+                                "type": "list",
+                                "body": [
+                                    "process → department → project_group → all",
+                                    "fallback do mniej restrykcyjnego levelu, jeśli brak godzin w scope."
+                                ],
+                                "children": []
+                            }
+                        ]
+                    }
+                ]
+            },
+
+            {
+                "id": "allocation_and_reporting",
+                "label": "Alokacja, narzuty i wymagania raportowe",
+                "type": "section",
+                "body": "Jak raporty mają łączyć koszty przypisane (worklog/resources) z overhead jako narzutem/h, bez materializowania alokacji per projekt w DB.",
+                "children": [
+                    {
+                        "id": "reporting_mvp_contract",
+                        "label": "Wymogi raportowe (MVP)",
+                        "type": "list",
+                        "body": [
+                            "Raport pobiera: (1) koszty przypisane per projekt oraz (2) overhead koszyki z hours_divider i cost_per_hour.",
+                            "Narzut/h liczony z sum godzin projektowych w danym scope i period.",
+                            "Aplikacja może trawersować/grupować dane aplikacyjnie (PHP) – to świadome założenie."
+                        ],
+                        "children": []
+                    }
+                ]
+            },
+
+            {
+                "id": "data_quality_controls",
+                "label": "Kontrole spójności i jakości danych (gates)",
+                "type": "section",
+                "body": "Checklisty i warunki, które muszą być spełnione przed publikacją FACT (per period).",
+                "children": [
+                    {
+                        "id": "quality_checks_list",
+                        "label": "Checklista kontrolna per period",
+                        "type": "list",
+                        "body": [
+                            "Brak rekordów FACT bez period_id.",
+                            "Brak rekordów FACT kosztowych bez margin_level.",
+                            "FACT resources: każdy rekord ma project_id.",
+                            "FACT overhead: brak project_id; overhead_level zgodny z wypełnieniem scope kluczy.",
+                            "Worklog: spójność jednostek czasu (hours_decimal) i brak ujemnych godzin."
+                        ],
+                        "children": []
+                    }
+                ]
+            },
+
+            {
+                "id": "app_modules_plan",
+                "label": "Plan modułów aplikacji (operacje na pipeline)",
+                "type": "section",
+                "body": "Spis komponentów i akcji aplikacji, które realizują pipeline per period: import, normalize, compute, publish, review.",
+                "children": [
+                    {
+                        "id": "ui_actions",
+                        "label": "Akcje UI/CLI per period",
+                        "type": "list",
+                        "body": [
+                            "Import RAW (per źródło) → walidacja → zapis.",
+                            "Normalize keys → kolejka mapowań (projekty/kontrahenci).",
+                            "Compute labor rates → wartościowanie worklog.",
+                            "Publish FACT (truncate+insert per period).",
+                            "Review: lista rekordów do ręcznych mapowań/reguł."
+                        ],
+                        "children": []
                     }
                 ]
             }
+
         ]
-    }
 }

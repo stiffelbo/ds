@@ -78,7 +78,7 @@
         "label": "Struktura organizacyjna",
         "description": "Hierarchia działów/MPK (rekurencyjna). To podstawowy wymiar do przypisywania kosztów i przychodów oraz raportowania rentowności.",
         "layer": "DIM",
-        "pipeline": ["masterdata", "costs", "income", "worklog", "materials"],
+        "pipeline": ["masterdata", "costs", "income", "worklog", "resources"],
         "domain" : "ORGANIZACJA",
         "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
         "grain": "one row per department node",
@@ -164,7 +164,7 @@
         "label": "Procesy",
         "description": "Słownik procesów/operacji wykonywanych w firmie. Proces jest jednostką, do której można przypisać pracowników, maszyny oraz wymagane materiały.",
         "layer": "DIM",
-        "pipeline": ["worklog", "materials", "costs"],
+        "pipeline": ["worklog", "resources", "costs"],
         "domain" : "PRODUKCJA",
         "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
         "grain": "one row per process",
@@ -176,7 +176,7 @@
         ],
         "fields": [
             { "name": "id", "type": "pk", "description": "Klucz główny procesu.", "required": true },
-            { "name": "department_id", "type": "fk:dim_department", "description": "Dział/MPK. Bez działu procesy ogólne", "required": false },
+            { "name": "department_id", "type": "fk:dim_department", "description": "Dział/MPK. Bez działu procesy ogólne", "required": true },
             { "name": "code", "type": "string", "description": "Kod procesu (opcjonalnie).", "required": false },
             { "name": "name", "type": "string", "description": "Nazwa procesu.", "required": true },
             { "name": "category", "type": "string", "description": "Kategoria", "required": true },
@@ -213,7 +213,7 @@
         "label": "Maszyny",
         "description": "Słownik maszyn/urządzeń produkcyjnych. Maszyna należy do działu (owner department) i może być wykorzystywana w procesach.",
         "layer": "DIM",
-        "pipeline": ["worklog", "materials", "costs"],
+        "pipeline": ["worklog", "resources", "costs"],
         "domain" : "PRODUKCJA",
         "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
         "grain": "one row per machine",
@@ -237,7 +237,7 @@
         "label": "Maszyny w procesach",
         "description": "Mapa: które maszyny mogą/mają być używane w danym procesie. Służy do walidacji raportów i analiz kosztów na zasobach.",
         "layer": "RULES",
-        "pipeline": ["worklog", "materials", "costs"],
+        "pipeline": ["worklog", "resources", "costs"],
         "domain" : "PRODUKCJA",
         "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
         "grain": "one row per machine-process assignment",
@@ -257,11 +257,11 @@
         "notes": null
     },
     {
-        "table_name": "dim_material",
-        "label": "Materiały",
-        "description": "Słownik materiałów używanych w procesach. Źródłem referencji mogą być zasoby/kartoteki z Optimy, ale nie każdy zasób jest materiałem — DS oznacza, które pozycje są materiałami do rozliczeń.",
+        "table_name": "dim_resource",
+        "label": "Zasoby",
+        "description": "Słownik zasobów materialnych i usług dostawców. Źródłem referencji mogą być zasoby/kartoteki z Optimy, ale nie każdy zasób jest materiałem — DS oznacza, które pozycje są materiałami do rozliczeń.",
         "layer": "DIM",
-        "pipeline": ["materials", "costs", "masterdata"],
+        "pipeline": ["resources", "costs", "masterdata"],
         "domain" : "PRODUKCJA",
         "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
         "grain": "one row per material",
@@ -274,30 +274,35 @@
             { "name": "external_ref", "type": "string", "description": "Id zasobu z Optimy (jeśli dotyczy).", "required": false },
             { "name": "code", "type": "string", "description": "Kod/SKU materiału (opcjonalnie).", "required": false },
             { "name": "name", "type": "string", "description": "Nazwa materiału.", "required": true },
+            { "name": "resource_type", "type": "string", "description": "Typ zasobu: material/consumable/service/oneoff.", "required": true },
+            { "name": "uom", "type": "string", "description": "Jednostka miary (np. ml, g, szt).", "required": false },
+            { "name": "is_bom_selectable", "type": "bool", "description": "Czy zasób może występować w BOM.", "required": false },
+            { "name": "is_process_selectable", "type": "bool", "description": "Czy zasób potrzebny do procesu", "required": false },
+            { "name": "is_consumption_trackable", "type": "bool", "description": "Czy raportujemy zużycie zasobu per projekt/proces (jak worklog).", "required": true },
             { "name": "is_active", "type": "bool", "description": "Czy materiał jest aktywny.", "required": true }
         ],
-        "notes": "Jeśli chcesz trzymać też zasoby nie-materiałowe, dodamy w kolejnej iteracji dim_resource + flagi. Na MVP wystarczy dim_material."
+        "notes": ""
     },
     {
-        "table_name": "dim_process_material",
-        "label": "Materiały wymagane w procesach",
+        "table_name": "dim_process_resource",
+        "label": "Zasoby wymagane w procesach",
         "description": "Mapa: jakie materiały są używane w procesie oraz czy są wymagane. Służy do walidacji raportów zużyć i definiowania BOM/oczekiwań procesowych na poziomie controllingu.",
         "layer": "RULES",
-        "pipeline": ["materials", "costs"],
+        "pipeline": ["resources", "costs"],
         "domain" : "PRODUKCJA",
         "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
-        "grain": "one row per process-material mapping",
+        "grain": "one row per process-resource mapping",
         "status": "mvp",
         "order_val": 61,
         "ui": { "component": "card", "color_override": null },
         "relations": [
             { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": true },
-            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": true }
+            { "type": "belongs_to", "table": "dim_resource", "fk": "resource_id", "required": true }
         ],
         "fields": [
             { "name": "id", "type": "pk", "description": "Klucz główny mapowania.", "required": true },
             { "name": "process_id", "type": "fk:dim_process", "description": "Proces.", "required": true },
-            { "name": "material_id", "type": "fk:dim_material", "description": "Materiał.", "required": true },
+            { "name": "resource_id", "type": "fk:dim_resource", "description": "Materiał.", "required": true },
             { "name": "is_required", "type": "bool", "description": "Czy materiał jest wymagany dla procesu.", "required": true },
             { "name": "is_active", "type": "bool", "description": "Czy mapowanie jest aktywne.", "required": true }
         ],
@@ -308,7 +313,7 @@
         "label": "Grupy projektów (typy)",
         "description": "Słownik typów/grup projektów na bazie Jiry (projekty + typy zadań/semantyka), utrzymywany w DS jako SSOT. Grupa projektu jest pivotem dla szablonów BOM/kosztów (templatek podobnych do jira_issue_costs).",
         "layer": "DIM",
-        "pipeline": ["masterdata", "costs", "worklog", "materials", "income"],
+        "pipeline": ["masterdata", "costs", "worklog", "resources", "income"],
         "domain" : "PROJEKTY",
         "source": { "id": "Jira?", "label": "DS (na bazie Jiry)", "color": "#2563EB" },
         "grain": "one row per project group/type",
@@ -331,7 +336,7 @@
         "label": "Projekty (rejestr)",
         "description": "Rejestr projektów/zamówień do rozliczeń. Wzorowany na danych z jira_issue (klucze, nazwa, klient, status, daty, ilości, ceny). Używany do spinania przychodów i kosztów oraz do BOM/templatek.",
         "layer": "DIM",
-        "pipeline": ["income", "costs", "worklog", "materials"],
+        "pipeline": ["income", "costs", "worklog", "resources"],
         "domain" : "PROJEKTY",
         "source": { "id": "jira", "label": "Jira → DS", "color": "#2563EB" },
         "grain": "one row per project (jira issue)",
@@ -351,10 +356,7 @@
 
             { "name": "jira_key", "type": "string", "description": "Sygnatura z Jiry (np. ABC-123).", "required": true },
             { "name": "jira_parent_key", "type": "string", "description": "Sygnatura parenta (opcjonalnie).", "required": false },
-            { "name": "jira_id", "type": "string", "description": "ID issue z Jiry (opcjonalnie).", "required": false },
             { "name": "jira_url", "type": "string", "description": "Link do issue w Jira (opcjonalnie).", "required": false },
-            { "name": "jira_project_key", "type": "string", "description": "Klucz projektu w Jira.", "required": false },
-            { "name": "jira_project_label", "type": "string", "description": "Nazwa projektu w Jira.", "required": false },
 
             { "name": "project_group_id", "type": "fk:dim_project_groups", "description": "Grupa/typ projektu (pivot pod template BOM/kosztów).", "required": false },
 
@@ -388,7 +390,7 @@
         "label": "Template zasobów projektu",
         "description": "Tabela reguł: jakie materiały/zasoby są standardowo wymagane dla danego typu projektu (grupy projektów). To jest prosta 'templatka materiałowa' bez wersjonowania i bez generowania tasków/procesów.",
         "layer": "RULES",
-        "pipeline": ["materials", "costs", "masterdata"],
+        "pipeline": ["resources", "costs", "masterdata"],
         "domain": "PROJEKTY",
         "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
         "grain": "one row per project_group x material rule",
@@ -397,13 +399,13 @@
         "ui": { "component": "card", "color_override": null },
         "relations": [
             { "type": "belongs_to", "table": "dim_project_groups", "fk": "project_group_id", "required": true },
-            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": true }
+            { "type": "belongs_to", "table": "dim_resource", "fk": "resource_id", "required": true }
         ],
         "fields": [
             { "name": "id", "type": "pk", "description": "Klucz główny reguły.", "required": true },
 
             { "name": "project_group_id", "type": "fk:dim_project_groups", "description": "Typ/grupa projektu.", "required": true },
-            { "name": "material_id", "type": "fk:dim_material", "description": "Materiał/zasób używany w projektach tego typu.", "required": true },
+            { "name": "resource_id", "type": "fk:dim_resource", "description": "Materiał/zasób używany w projektach tego typu.", "required": true },
 
             { "name": "is_required", "type": "bool", "description": "Czy materiał jest wymagany dla tego typu projektu.", "required": true },
 
@@ -426,7 +428,7 @@
         "label": "Okresy rozliczeniowe",
         "description": "Definicja okresów rozliczeniowych (najczęściej miesiące kalendarzowe). Okres jest pivotem raportowania przychodów i kosztów oraz zamykania controllingu.",
         "layer": "DIM",
-        "pipeline": ["costs", "income", "worklog", "materials", "allocation"],
+        "pipeline": ["costs", "income", "worklog", "resources", "allocation"],
         "domain": "FINANSE",
         "source": { "id": "ds", "label": "DS", "color": "#16A34A" },
         "grain": "one row per accounting period (month)",
@@ -603,7 +605,7 @@
 
             { "name": "amount", "type": "decimal", "description": "Wartość kosztu (rate) w walucie bazowej (np. PLN).", "required": true },
 
-            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa .", "required": true },
             { "name": "is_balance", "type": "bool", "description": "Czy zapis bilansowy (is_bilance).", "required": true },
 
             { "name": "period_id", "type": "fk:dim_period", "description": "Okres rozliczeniowy (id_period).", "required": true },
@@ -617,7 +619,7 @@
         "notes": "Pole 'marza' jako bool jest zbyt ubogie dla Twojego znaczenia. W DS trzymaj margin_level jako int/enum. Jeśli chcesz słownik: dodamy dim_margin_level."
     },
     {
-        "table_name": "raw_worklog",
+        "table_name": "raw_clockify",
         "label": "Raport pracy – wpisy czasu (raw)",
         "description": "Surowe wpisy czasu pracy importowane z Clockify (lub podobnego źródła). Dane są spinane z pracownikiem, działem i okresem; opcjonalnie mapowane do projektu (projects) po sygnaturze taska.",
         "layer": "RAW",
@@ -667,7 +669,7 @@
     },
     {
         "table_name": "raw_worklog",
-        "label": "Worklog – raport pracy (processed)",
+        "label": "Worklog – raport pracy",
         "description": "Ustrukturyzowany raport czasu pracy (docelowa postać do rozliczeń). Każdy wpis jest przypisany do procesu i działu, opcjonalnie do projektu oraz maszyny. Wspiera oznaczenie poprawek (rework).",
         "layer": "RAW",
         "pipeline": ["worklog", "costs"],
@@ -716,7 +718,7 @@
         "label": "Zużycia materiałów – dekretacja na projekt (raw)",
         "description": "Ustrukturyzowany raport zużycia materiałów przypisany do projektu (dekretacja). Wpis może być powiązany z procesem, maszyną i (opcjonalnie) z wpisem czasu pracy. To jest warstwa RAW przed wyceną i faktami kosztowymi.",
         "layer": "RAW",
-        "pipeline": ["materials", "costs"],
+        "pipeline": ["resources", "costs"],
         "domain": "RAPORTY",
         "source": { "id": "gem", "label": "GEM/Excel → DS", "color": "#6B7280" },
         "grain": "one row per material usage entry",
@@ -725,7 +727,7 @@
         "ui": { "component": "card", "color_override": null },
         "relations": [
             { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": true },
-            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": true },
+            { "type": "belongs_to", "table": "dim_resource", "fk": "resource_id", "required": true },
             { "type": "belongs_to", "table": "dim_machine", "fk": "machine_id", "required": false },
             { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": false },
             { "type": "belongs_to", "table": "raw_worklog", "fk": "worklog_id", "required": false },
@@ -737,7 +739,7 @@
             { "name": "ref_id", "type": "fk", "description": "Projekt, którego dotyczy zużycie.", "required": true },
             { "name": "ref", "type": "string", "description": "Referencja tekstowa", "required": true },
 
-            { "name": "material_id", "type": "fk:dim_material", "description": "Materiał/zasób zużyty.", "required": true },
+            { "name": "resource_id", "type": "fk:dim_resource", "description": "Materiał/zasób zużyty.", "required": true },
 
             { "name": "process_id", "type": "fk:dim_process", "description": "Proces/operacja (opcjonalnie).", "required": false },
             { "name": "machine_id", "type": "fk:dim_machine", "description": "Maszyna (opcjonalnie).", "required": false },
@@ -768,7 +770,7 @@
         "relations": [
             { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": true },
             { "type": "belongs_to", "table": "dim_contractor", "fk": "supplier_id", "required": true },
-            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": true },
+            { "type": "belongs_to", "table": "dim_resource", "fk": "resource_id", "required": true },
             { "type": "belongs_to", "table": "dim_employee", "fk": "employee_id", "required": true }
         ],
         "fields": [
@@ -778,7 +780,7 @@
 
             { "name": "supplier_id", "type": "fk:dim_contractor", "description": "Dostawca/kontrahent (supplier).", "required": true },
 
-            { "name": "material_id", "type": "fk:dim_material", "description": "Kupiony materiał/usługa (jeden słownik na MVP).", "required": true },
+            { "name": "resource_id", "type": "fk:dim_resource", "description": "Kupiony materiał/usługa (jeden słownik na MVP).", "required": true },
 
             { "name": "qty", "type": "decimal", "description": "Ilość zakupiona/zadekretowana.", "required": true },
             { "name": "unit_price", "type": "decimal", "description": "Cena jednostkowa (PLN).", "required": true },
@@ -786,7 +788,7 @@
             { "name": "invoice_no", "type": "string", "description": "Numer faktury (opcjonalnie).", "required": false },
 
             { "name": "employee_id", "type": "fk:dim_employee", "description": "Osoba, która zdekretowała zakup (GEM user).", "required": true },
-            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa .", "required": true },
             { "name": "notes", "type": "text", "description": "Uwagi (opcjonalnie).", "required": false },
 
             { "name": "is_stock", "type": "bool", "description": "Czy zakup dotyczy magazynu (czy_magazyn).", "required": true },
@@ -830,10 +832,10 @@
 
             { "name": "is_rework", "type": "bool", "description": "Czy poprawka/rework.", "required": true },
 
-            { "name": "hours", "type": "decimal", "description": "Czas wpisu (min).", "required": true },
-            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
+            { "name": "hours", "type": "decimal", "description": "Czas wpisu godziny.", "required": true },
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa .", "required": true },
             { "name": "hour_rate", "type": "decimal", "description": "Stawka godzinowa wyliczona dla (employee,period) na bazie godzin projektowych.", "required": true },
-            { "name": "cost_amount", "type": "decimal", "description": "Koszt wpisu: minutes/60 * hour_rate.", "required": true },
+            { "name": "cost_amount", "type": "decimal", "description": "Koszt wpisu: hours * hour_rate.", "required": true },
             { "name": "currency", "type": "string", "description": "Waluta (np. PLN).", "required": true },
 
             { "name": "raw_worklog_id", "type": "fk:raw_worklog", "description": "Źródłowy wpis worklog (audyt).", "required": true },
@@ -854,63 +856,62 @@
         "order_val": 500,
         "ui": { "component": "card", "color_override": null },
         "relations": [
-            { "type": "belongs_to", "table": "periods", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": true },
             { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": true },
 
             { "type": "belongs_to", "table": "raw_cost_line", "fk": "raw_cost_line_id", "required": true },
             { "type": "belongs_to", "table": "raw_purchase_allocation", "fk": "raw_purchase_allocation_id", "required": false },
 
-            { "type": "belongs_to", "table": "dim_counterparty", "fk": "contractor_id", "required": false },
+            { "type": "belongs_to", "table": "dim_contractor", "fk": "contractor_id", "required": false },
 
             { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": false },
             { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": false },
             { "type": "belongs_to", "table": "dim_machine", "fk": "machine_id", "required": false },
-            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": false }
+            { "type": "belongs_to", "table": "dim_resource", "fk": "resource_id", "required": false }
         ],
         "fields": [
             { "name": "id", "type": "pk", "description": "PK rekordu alokacji zakupowej.", "required": true },
 
-            { "name": "period_id", "type": "fk:periods", "description": "Okres rozliczeniowy (pivot).", "required": true },
+            { "name": "period_id", "type": "fk:dim_period", "description": "Okres rozliczeniowy (pivot).", "required": true },
             { "name": "project_id", "type": "fk:projects", "description": "Projekt, do którego przypisano koszt.", "required": true },
 
             { "name": "raw_cost_line_id", "type": "fk:raw_cost_line", "description": "Źródłowy wiersz kosztowy (Optima).", "required": true },
             { "name": "raw_purchase_allocation_id", "type": "fk:raw_purchase_allocation", "description": "Źródłowa dekretacja zakupowa (jeśli była).", "required": false },
 
-            { "name": "contractor_id", "type": "fk:dim_counterparty", "description": "Dostawca/kontrahent (jeśli znany).", "required": false },
+            { "name": "contractor_id", "type": "fk:dim_contractor", "description": "Dostawca/kontrahent (jeśli znany).", "required": false },
 
             { "name": "department_id", "type": "fk:dim_department", "description": "Dział kosztu (jeśli znany / owner).", "required": false },
             { "name": "process_id", "type": "fk:dim_process", "description": "Proces (jeśli zakup dotyczy procesu).", "required": false },
             { "name": "machine_id", "type": "fk:dim_machine", "description": "Maszyna (jeśli zakup dotyczy zasobu, np. serwis).", "required": false },
-            { "name": "material_id", "type": "fk:dim_material", "description": "Materiał/usługa w sensie słownika zakupów (opcjonalnie).", "required": false },
+            { "name": "resource_id", "type": "fk:dim_resource", "description": "Materiał/usługa w sensie słownika zakupów (opcjonalnie).", "required": false },
 
             { "name": "amount", "type": "decimal", "description": "Kwota kosztu przypisana do projektu (w walucie).", "required": true },
             { "name": "currency", "type": "string", "description": "Waluta.", "required": true },
 
-            { "name": "cost_group", "type": "enum(direct,production_mgmt,project_service,admin,marketing,other)", "description": "Segment narzutu/marży – do raportowania i alokacji.", "required": true },
-            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa .", "required": true },
             { "name": "match_type", "type": "enum(exact,split,manual)", "description": "Typ dopasowania.", "required": true },
             { "name": "match_key", "type": "string", "description": "Klucz dopasowania (np. doc_no+amount).", "required": false }
         ],
         "notes": "department/process/machine/material są opcjonalne i służą do lepszego drill-down oraz do alokacji kosztów nieprzypisanych (fallback)."
     },
     {
-        "table_name": "proc_materials_allocation",
+        "table_name": "proc_resources_allocation",
         "label": "Alokacje kosztów materiałów → projekty",
-        "description": "Wynik dopasowania pozycji kosztowych z księgi (raw_cost_line) do raportów zużyć materiałowych na projekty (raw_materials_usage). Każdy rekord to część kosztu przypisana do projektu na podstawie zużycia.",
+        "description": "Wynik dopasowania pozycji kosztowych z księgi (raw_cost_line) do raportów zużyć materiałowych na projekty (raw_material_usage). Każdy rekord to część kosztu przypisana do projektu na podstawie zużycia.",
         "layer": "PROCESSED",
-        "pipeline": ["costs", "materials", "allocation"],
+        "pipeline": ["costs", "resources", "allocation"],
         "domain": "KOSZTY",
         "source": { "id": "ds", "label": "DS (processed)", "color": "#16A34A" },
-        "grain": "one row per allocated amount from raw_cost_line to project via materials usage",
+        "grain": "one row per allocated amount from raw_cost_line to project via resources usage",
         "status": "mvp",
         "order_val": 510,
         "ui": { "component": "card", "color_override": null },
         "relations": [
-            { "type": "belongs_to", "table": "periods", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": true },
             { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": true },
             { "type": "belongs_to", "table": "raw_cost_line", "fk": "raw_cost_line_id", "required": true },
-            { "type": "belongs_to", "table": "raw_materials_usage", "fk": "raw_materials_usage_id", "required": false },
-            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": false },
+            { "type": "belongs_to", "table": "raw_material_usage", "fk": "raw_material_usage_id", "required": false },
+            { "type": "belongs_to", "table": "dim_resource", "fk": "resource_id", "required": false },
             { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": false },
             { "type": "belongs_to", "table": "dim_machine", "fk": "machine_id", "required": false },
             { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": false }
@@ -918,26 +919,23 @@
         "fields": [
             { "name": "id", "type": "pk", "description": "PK alokacji materiałowej.", "required": true },
 
-            { "name": "period_id", "type": "fk:periods", "description": "Okres rozliczeniowy (pivot).", "required": true },
+            { "name": "period_id", "type": "fk:dim_period", "description": "Okres rozliczeniowy (pivot).", "required": true },
             { "name": "project_id", "type": "fk:projects", "description": "Projekt przypisania kosztu.", "required": true },
 
             { "name": "raw_cost_line_id", "type": "fk:raw_cost_line", "description": "Źródłowy wiersz kosztowy z księgi (Optima).", "required": true },
-            { "name": "raw_materials_usage_id", "type": "fk:raw_materials_usage", "description": "Źródłowy raport zużycia (GEM/DS), jeśli dopasowano.", "required": false },
+            { "name": "raw_material_usage_id", "type": "fk:raw_material_usage", "description": "Źródłowy raport zużycia (GEM/DS), jeśli dopasowano.", "required": false },
 
-            { "name": "material_id", "type": "fk:dim_material", "description": "Materiał, jeśli możliwe do ustalenia.", "required": false },
+            { "name": "resource_id", "type": "fk:dim_resource", "description": "Materiał, jeśli możliwe do ustalenia.", "required": false },
             { "name": "process_id", "type": "fk:dim_process", "description": "Proces, jeśli raport wskazuje.", "required": false },
             { "name": "machine_id", "type": "fk:dim_machine", "description": "Maszyna, jeśli raport wskazuje.", "required": false },
             { "name": "department_id", "type": "fk:dim_department", "description": "Dział, jeśli raport wskazuje.", "required": false },
-
             { "name": "amount", "type": "decimal", "description": "Kwota kosztu przypisana do projektu (w walucie).", "required": true },
             { "name": "currency", "type": "string", "description": "Waluta kwoty.", "required": true },
-            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
-            { "name": "cost_group", "type": "enum(direct,production_mgmt,project_service,admin,marketing,other)", "description": "Grupa kosztu (\"marża\" / segment narzutu).", "required": true },
-
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa .", "required": true },
             { "name": "match_type", "type": "enum(exact,split,manual)", "description": "Sposób dopasowania (dokładne / podział / ręczne).", "required": true },
             { "name": "match_key", "type": "string", "description": "Klucz dopasowania (np. doc_no+material+amount) – pomoc diagnostyczna.", "required": false }
         ],
-        "notes": "Tu alokacja jest napędzana zużyciem. Jeśli koszt materiałów w księdze dotyczy wielu projektów, generujesz split na podstawie udziałów/ilości z raw_materials_usage."
+        "notes": "Tu alokacja jest napędzana zużyciem. Jeśli koszt materiałów w księdze dotyczy wielu projektów, generujesz split na podstawie udziałów/ilości z raw_material_usage."
     },
     {
         "table_name": "proc_cost_unallocated",
@@ -952,7 +950,7 @@
         "order_val": 520,
         "ui": { "component": "card", "color_override": null },
         "relations": [
-            { "type": "belongs_to", "table": "periods", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": true },
             { "type": "belongs_to", "table": "raw_cost_line", "fk": "raw_cost_line_id", "required": true }
         ],
         "fields": [
@@ -963,8 +961,8 @@
 
             { "name": "unallocated_amount", "type": "decimal", "description": "Kwota nieprzypisana (pełna lub pozostałość po częściowej alokacji).", "required": true },
             { "name": "currency", "type": "string", "description": "Waluta kwoty.", "required": true },
-            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
-            { "name": "allocation_channel", "type": "enum(purchase,materials,other)", "description": "Kanał, którym próbowano alokować (zakupy / materiały / inne).", "required": true },
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa .", "required": true },
+            { "name": "allocation_channel", "type": "enum(purchase,resources,other)", "description": "Kanał, którym próbowano alokować (zakupy / materiały / inne).", "required": true },
             { "name": "reason_code", "type": "enum(no_match,amount_mismatch,split_required,duplicate_candidates,missing_reference,manual_hold,other)", "description": "Kod powodu nieprzypisania.", "required": true },
 
             { "name": "status", "type": "enum(new,in_review,resolved,ignored)", "description": "Status obsługi w controllingu.", "required": true },
@@ -973,67 +971,111 @@
         "notes": "Ta tabela jest SSOT dla braków alokacji. Pozwala zamykać okresy i kontrolować, czy wszystkie koszty zostały przypisane do projektów albo świadomie zaklasyfikowane jako overhead."
     },
     {
-        "table_name": "fact_costs",
-        "label": "FACT: Koszty (alokowane i niealokowane)",
-        "description": "SSOT kosztów do raportów. Zawiera zarówno koszty już przypisane do projektu (is_allocated=true), jak i koszty nieprzypisane (is_allocated=false) wraz z instrukcją: po jakich godzinach projektowych wolno je rozdzielić (scope + filtr). Fallback dla kosztów niealokowanych: product_group → department → all_projects.",
+        "table_name": "fact_costs_worklog",
+        "label": "FACT: Koszty pracy (worklog)",
+        "description": "Koszt pracy liczony per wpis czasu pracy. Granulat odpowiada wpisom worklog. Każdy rekord zawiera godziny, stawkę oraz finalny koszt pracy przypisany do projektu.",
         "layer": "FACT",
-        "pipeline": ["costs", "allocation"],
+        "pipeline": ["worklog", "costs"],
         "domain": "KOSZTY",
-        "source": { "id": "ds", "label": "DS (facts)", "color": "#16A34A" },
-        "grain": "one row per cost item (allocated cost per project OR unallocated cost pool with hour-scope instruction)",
+        "source": { "id": "ds", "label": "DS (worklog facts)", "color": "#16A34A" },
+        "grain": "one row per worklog entry",
         "status": "mvp",
-        "order_val": 900,
+        "order_val": 910,
         "ui": { "component": "card", "color_override": null },
         "relations": [
-            { "type": "belongs_to", "table": "periods", "fk": "period_id", "required": true },
-
-            { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": false },
-
+            { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": true },
+            { "type": "belongs_to", "table": "dim_employee", "fk": "employee_id", "required": true },
             { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": false },
-            { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": false },
-            { "type": "belongs_to", "table": "dim_machine", "fk": "machine_id", "required": false },
-            { "type": "belongs_to", "table": "dim_employee", "fk": "employee_id", "required": false },
-
-            { "type": "belongs_to", "table": "dim_material", "fk": "material_id", "required": false },
-            { "type": "belongs_to", "table": "dim_counterparty", "fk": "contractor_id", "required": false },
-
-            { "type": "belongs_to", "table": "dim_product_groups", "fk": "product_group_id", "required": false }
+            { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": false }
         ],
         "fields": [
-            { "name": "id", "type": "pk", "description": "PK rekordu FACT.", "required": true },
-
-            { "name": "period_id", "type": "fk:periods", "description": "Okres rozliczeniowy (pivot).", "required": true },
-
-            { "name": "is_allocated", "type": "bool", "description": "Czy koszt jest przypisany do konkretnego projektu (true) czy jest pulą do podziału (false).", "required": true },
-
-            { "name": "source_type", "type": "enum(purchase,materials,worklog,overhead,manual,other)", "description": "Skąd pochodzi koszt (kanał).", "required": true },
-            { "name": "source_ref_table", "type": "string", "description": "Tabela źródłowa rekordu (np. raw_cost_line / proc_purchase_allocation).", "required": false },
-            { "name": "source_ref_id", "type": "string", "description": "Id rekordu źródłowego (diagnostyka/audyt).", "required": false },
-
-            { "name": "cost_group", "type": "enum(direct,production_mgmt,project_service,admin,marketing,other)", "description": "Segment marży / grupa kosztu do raportowania i narzutów.", "required": true },
-
-            { "name": "amount", "type": "decimal", "description": "Kwota kosztu. Dla is_allocated=true: final; dla is_allocated=false: pula do podziału.", "required": true },
-
-            { "name": "project_id", "type": "fk:projects", "description": "Projekt. Wymagany gdy is_allocated=true.", "required": false },
-
-            { "name": "department_id", "type": "fk:dim_department", "description": "Dział (hak analityczny i scope alokacji).", "required": false },
-            { "name": "process_id", "type": "fk:dim_process", "description": "Proces (jeśli znany).", "required": false },
-            { "name": "machine_id", "type": "fk:dim_machine", "description": "Maszyna (jeśli znana).", "required": false },
-            { "name": "employee_id", "type": "fk:dim_employee", "description": "Pracownik (jeśli dotyczy pracy).", "required": false },
-
-            { "name": "material_id", "type": "fk:dim_material", "description": "Materiał/usługa (jeśli dotyczy).", "required": false },
-            { "name": "contractor_id", "type": "fk:dim_counterparty", "description": "Dostawca/kontrahent (jeśli znany).", "required": false },
-
-            { "name": "product_group_id", "type": "fk:dim_product_groups", "description": "Grupa produktowa. Ostateczny fallback ograniczenia alokacji kosztów niealokowanych.", "required": false },
-            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L (np. 1=direct,2=production mgmt,3=project service,4=admin,5=marketing).", "required": true },
-            { "name": "hours_divider", "type": "decimal", "description": "Tylko dla is_allocated=false: suma godzin projektowych użyta jako mianownik (dla szybkich raportów).", "required": false },
-            { "name": "cost_per_hour", "type": "decimal", "description": "Tylko dla is_allocated=false: amount / hours_divider (narzut na godzinę w scope).", "required": false },
-            { "name": "candidates_count", "type": "int", "description": "Tylko dla is_allocated=false: liczba projektów biorących udział w podziale (diagnostyka).", "required": false },
-
-            { "name": "alloc_status", "type": "enum(new,in_review,ready,allocated,ignored)", "description": "Status obsługi kosztu niealokowanego (controlling).", "required": false },
-            { "name": "alloc_note", "type": "text", "description": "Notatka controllingu / instrukcja ręczna (opcjonalnie).", "required": false }
+            { "name": "id", "type": "pk", "description": "PK rekordu worklog kosztu.", "required": true },
+            { "name": "period_id", "type": "fk:dim_period", "description": "Okres rozliczeniowy.", "required": true },
+            { "name": "worklog_source", "type": "string", "description": "Źródło wpisu czasu (np. clockify, gem, manual).", "required": true },
+            { "name": "worklog_id", "type": "string", "description": "Id wpisu czasu w systemie źródłowym.", "required": true },
+            { "name": "work_date", "type": "date", "description": "Data pracy.", "required": true },
+            { "name": "employee_id", "type": "fk:dim_employee", "description": "Pracownik wykonujący pracę.", "required": true },
+            { "name": "project_id", "type": "fk:projects", "description": "Projekt do którego przypisano pracę.", "required": true },
+            { "name": "department_id", "type": "fk:dim_department", "description": "Dział pracownika lub projektu.", "required": false },
+            { "name": "process_id", "type": "fk:dim_process", "description": "Proces produkcyjny jeśli dotyczy.", "required": false },
+            { "name": "hours", "type": "decimal", "description": "Liczba przepracowanych godzin.", "required": true },
+            { "name": "hourly_rate", "type": "decimal", "description": "Stawka kosztowa za godzinę.", "required": true },
+            { "name": "amount", "type": "decimal", "description": "Koszt pracy (hours * hourly_rate).", "required": true },
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L.", "required": true },
+            { "name": "note", "type": "text", "description": "Notatka lub komentarz.", "required": false }
         ],
-        "notes": "Reguła: koszty niealokowane (is_allocated=false) zawsze dzielone po godzinach projektowych w obrębie scope (process/machine/department/product_group/all_projects). product_group_id jest ostatecznym fallback ograniczenia kandydatów. Raporty pobierają zarówno koszty przypisane (is_allocated=true), jak i pule (is_allocated=false) z cost_per_hour i hours_divider."
+        "notes": "Tabela zawiera koszt pracy per wpis czasu. amount = hours * hourly_rate."
+    },
+    {
+        "table_name": "fact_costs_resources",
+        "label": "FACT: Koszty zasobów (materiały, zakupy, usługi)",
+        "description": "Koszty materiałów, usług i zakupów przypisanych bezpośrednio do projektów. Każdy rekord reprezentuje linię kosztową zaalokowaną do projektu.",
+        "layer": "FACT",
+        "pipeline": ["resources", "costs"],
+        "domain": "KOSZTY",
+        "source": { "id": "ds", "label": "DS (resource costs)", "color": "#16A34A" },
+        "grain": "one row per allocated cost line",
+        "status": "mvp",
+        "order_val": 920,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "projects", "fk": "project_id", "required": true },
+            { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": false },
+            { "type": "belongs_to", "table": "dim_resource", "fk": "resource_id", "required": false },
+            { "type": "belongs_to", "table": "dim_contractor", "fk": "contractor_id", "required": false }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "PK rekordu kosztu zasobu.", "required": true },
+            { "name": "period_id", "type": "fk:dim_period", "description": "Okres rozliczeniowy.", "required": true },
+            { "name": "source_type", "type": "string", "description": "Źródło danych (ERP, import, manual).", "required": true },
+            { "name": "source_line_id", "type": "string", "description": "Id linii kosztowej w systemie źródłowym.", "required": true },
+            { "name": "document_no", "type": "string", "description": "Numer dokumentu źródłowego.", "required": false },
+            { "name": "project_id", "type": "fk:projects", "description": "Projekt do którego przypisano koszt.", "required": true },
+            { "name": "department_id", "type": "fk:dim_department", "description": "Dział odpowiedzialny.", "required": false },
+            { "name": "resource_id", "type": "fk:dim_resource", "description": "Materiał lub typ usługi.", "required": false },
+            { "name": "contractor_id", "type": "fk:dim_contractor", "description": "Dostawca.", "required": false },
+            { "name": "quantity", "type": "decimal", "description": "Ilość (jeśli dotyczy).", "required": false },
+            { "name": "unit", "type": "string", "description": "Jednostka.", "required": false },
+            { "name": "unit_price", "type": "decimal", "description": "Cena jednostkowa.", "required": false },
+            { "name": "amount", "type": "decimal", "description": "Finalna kwota kosztu.", "required": true },
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L.", "required": true },
+            { "name": "note", "type": "text", "description": "Notatka lub komentarz.", "required": false }
+        ],
+        "notes": "Tabela zawiera koszty materiałów, usług i zakupów przypisane bezpośrednio do projektów."
+    },
+    {
+        "table_name": "fact_overhead_costs",
+        "label": "FACT: Koszty overhead",
+        "description": "Koszty pośrednie nieprzypisane do konkretnych projektów. Rekord reprezentuje koszyk kosztowy przypisany do poziomu odpowiedzialności (proces, dział, grupa projektowa lub cała organizacja).",
+        "layer": "FACT",
+        "pipeline": ["overhead", "costs"],
+        "domain": "KOSZTY",
+        "source": { "id": "ds", "label": "DS (overhead)", "color": "#16A34A" },
+        "grain": "one row per overhead cost bucket",
+        "status": "mvp",
+        "order_val": 930,
+        "ui": { "component": "card", "color_override": null },
+        "relations": [
+            { "type": "belongs_to", "table": "dim_period", "fk": "period_id", "required": true },
+            { "type": "belongs_to", "table": "dim_department", "fk": "department_id", "required": false },
+            { "type": "belongs_to", "table": "dim_process", "fk": "process_id", "required": false },
+            { "type": "belongs_to", "table": "dim_project_groups", "fk": "project_group_id", "required": false }
+        ],
+        "fields": [
+            { "name": "id", "type": "pk", "description": "PK rekordu overhead.", "required": true },
+            { "name": "period_id", "type": "fk:dim_period", "description": "Okres rozliczeniowy.", "required": true },
+            { "name": "overhead_level", "type": "enum(process,department,project_group,all)", "description": "Poziom odpowiedzialności kosztu.", "required": true },
+            { "name": "process_id", "type": "fk:dim_process", "description": "Proces produkcyjny jeśli overhead dotyczy procesu.", "required": false },
+            { "name": "department_id", "type": "fk:dim_department", "description": "Dział odpowiedzialny za koszt.", "required": false },
+            { "name": "project_group_id", "type": "fk:dim_project_groups", "description": "Grupa projektowa jeśli overhead jest ograniczony do tej grupy.", "required": false },
+            { "name": "margin_level", "type": "int", "description": "Poziom marży / warstwa P&L.", "required": true },
+            { "name": "amount", "type": "decimal", "description": "Kwota kosztu overhead.", "required": true },
+            { "name": "origin_ref", "type": "string", "description": "Referencja źródłowa (np. dokument lub batch importu).", "required": false },
+            { "name": "origin_note", "type": "text", "description": "Opis źródła kosztu.", "required": false }
+        ],
+        "notes": "Tabela przechowuje koszty pośrednie przed alokacją na projekty."
     },
     {
         "table_name": "fact_income",

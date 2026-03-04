@@ -1,6 +1,6 @@
 {{-- components/contract/code.blade.php --}}
 
-<h3 class="font-semibold mb-3">
+<h3 class="font-semibold mb-3" id="{{$node['id']}}">
     {{ $node['label'] ?? '' }}
 </h3>
 
