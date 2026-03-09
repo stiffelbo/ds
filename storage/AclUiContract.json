@@ -465,16 +465,75 @@
         {
           "id": "php_class_map_ui",
           "label": "Subsystem UI (app/UI)",
-          "type": "list",
+          "type": "section",
           "body": [
-            "UI / UiBuilder – top-level fluent DSL.",
-            "FieldDefinition / FieldBuilder – registry pól i ich definicji logicznych.",
-            "FormBuilder / TableBuilder / CardsBuilder – moduły rendererowe low-level DSL.",
-            "UiDefinition – znormalizowany obiekt definicji po build().",
-            "UiCompiler – łączy UiDefinition, AccessContext, OptionsResolver i ewentualnie Entity/Data Schema.",
-            "OptionsDefinition / OptionsResolver / providers – subsystem list opcji."
+            "Subsystem UI jest typed, code-first i stanowi warstwę definicji oraz kompilacji kontraktów UI niezależnych od konkretnego renderera.",
+            "Rdzeń rozdziela definicje wspólne (field/root definitions), definicje rendererów (np. form), buildery authoringowe oraz compiler runtime łączący UI DSL z ACL."
           ],
-          "children": []
+          "children": [
+            {
+              "id": "php_class_map_ui_core",
+              "label": "Core / root definitions",
+              "type": "object",
+              "body": {
+                "BaseUi": "Bazowa klasa definicji UI dla encji; narzuca strukturę metod, waliduje spójność i składa finalny kontrakt definicyjny.",
+                "FieldDefinition": "Root definition pola; opisuje stałe cechy pola na poziomie UI contract, np. name, dataType, required, nullable, default, label.",
+                "Types": {
+                  "FieldType": "Enum logicznego typu danych pola.",
+                  "FieldInput": "Enum bazowego typu inputu/render hint dla pola.",
+                  "FormSubmitMode": "Enum trybu submitu formularza."
+                }
+              },
+              "children": []
+            },
+            {
+              "id": "php_class_map_ui_form",
+              "label": "Form definitions (app/UI/Definitions/Form)",
+              "type": "object",
+              "body": {
+               
+                "FormNodeDefinition": "Interfejs wspólny dla wszystkich node'ów formularza; każdy node umie zwrócić nodeType() i toArray().",
+               
+                "FormDefinition": "Definicja całego formularza; trzyma key, label, submit mode, submit config oraz drzewo nodes.",
+                "FormFieldDefinition": "Node pola formularza; opisuje override'y formularzowe dla field, np. label, placeholder, helperText, readonly, disabled, layout, validation, options.",
+                "FormFieldsetDefinition": "Node grupujący pola i inne node'y formularza; pozwala budować sekcje/fieldsety i rekursyjne drzewo formularza.",
+                "FormCustomDefinition": "Node custom dla osadzania niestandardowego komponentu, partiala lub sub-form fragmentu.",
+                "FormValidationDefinition": "Typed definicja walidacji formularzowej; może przechowywać rules/messages/meta kompatybilne z podejściem Laravel-first.",
+                "FormOptionsDefinition": "Definicja opcji dla pól select-like; agreguje listę items lub źródło opcji.",
+                "OptionItemDefinition": "Pojedyncza opcja listy; np. value/label/disabled/meta.",
+                "OptionSourceDefinition": "Opis dynamicznego źródła opcji; np. target/source/valueField/labelField/filters."
+              },
+              "children": []
+            },
+            {
+              "id": "php_class_map_ui_builders",
+              "label": "Builders / authoring DSL",
+              "type": "object",
+              "body": {
+                "FormBuilder": "Builder formularza; buduje FormDefinition i udostępnia authoring DSL na poziomie top-level form.",
+                "FormFieldsetBuilder": "Builder fieldsetu formularza; obsługuje rekursyjne budowanie nodes wewnątrz sekcji formularza.",
+                "FormNodeCollectionBuilderInterface": "Kontrakt dla builderów kolekcji node'ów formularza; standaryzuje metody field/custom/fieldset.",
+                "Future builders": {
+                  "TableBuilder": "Docelowy builder tabeli/kolumn.",
+                  "CardsBuilder": "Docelowy builder cards/list/card layouts.",
+                  "FiltersBuilder": "Docelowy builder filtrów wyszukiwania."
+                }
+              },
+              "children": []
+            },
+            {
+              "id": "php_class_map_ui_runtime",
+              "label": "Runtime / compilation layer",
+              "type": "object",
+              "body": {
+                "UiCompiler": "Łączy BaseUi / definitions z AccessContext i opcjonalnie innymi resolverami, tworząc finalny runtime contract dla renderera.",
+                "Form schema resolver": "Adapter/mapper budujący finalny kontrakt formularza dla konkretnego renderer engine (React headless, Blade, Livewire).",
+                "OptionsResolver": "Resolver źródeł opcji; zamienia OptionSourceDefinition na gotowe opcje runtime.",
+                "ACL boundary": "ACL pozostaje osobną warstwą; UI DSL nie implementuje bezpieczeństwa, tylko jest kompilowany z AccessContext."
+              },
+              "children": []
+            }
+          ]
         },
         {
           "id": "php_class_map_entity_defs",
@@ -559,4 +618,3 @@
     }
   ]
 }
-
