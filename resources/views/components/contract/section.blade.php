@@ -41,9 +41,16 @@
     };
 
     $hasBody = !empty($node['body']);
+    $hasID = !empty($node['id']);
     $hasChildren = !empty($node['children']) && is_array($node['children']);
-@endphp
 
+    if(!$hasID) {
+        // Generuj ID z labelu jeśli nie ma, ale ma dzieci (jest ważny dla TOC)
+        var_dump($node);
+    }
+@endphp
+{{-- Body --}}
+@if($hasID)
 <div class="mt-5" id="{{$node['id']}}">
     {{-- Header (card header) --}}
     <div class="relative {{ $headerPad }} bg-base-100/40">
@@ -65,7 +72,7 @@
     </div>
     <div class="mt-3 border-b {{ $underlineClass }}"></div>
 </div>
-
+@endif
 {{-- Body --}}
 @if($hasBody)
     <div class="{{ $bodyPad }}">

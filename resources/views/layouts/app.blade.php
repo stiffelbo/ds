@@ -27,6 +27,7 @@
         <a class="btn btn-ghost normal-case text-sm gap-3" href="{{route('contract.show')}}">DevContract</a>
         <a class="btn btn-ghost normal-case text-sm gap-3" href="{{route('data-model.show')}}">Data Model</a>
         <a class="btn btn-ghost normal-case text-sm gap-3" href="{{route('business-contract.show')}}">BizContract</a>
+        <a class="btn btn-ghost normal-case text-sm gap-3" href="{{route('acl-contract.show')}}">ACL Contract</a>
 
     </div>
 

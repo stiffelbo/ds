@@ -51,50 +51,36 @@
         {
             "id": "ds_application_layer",
             "label": "Warstwa aplikacyjna DS",
+            "cfo" : "DS Application Layer (Controlling Platform)",
             "type": "section",
             "body": "DS jest aplikacją controllingową (Laravel), która zarządza pipeline danych oraz udostępnia interfejs administracyjny do zarządzania mapowaniami, alokacjami i raportami operacyjnymi. System nie jest narzędziem wizualizacji BI – jego rolą jest przygotowanie spójnych danych do raportowania.",
             "children": [
                 {
                     "id": "ds_application_capabilities",
                     "label": "Funkcje aplikacyjne DS",
+                    "cfo" : "Controlling Workbench (Admin, Imports, Forms, Gates)",
                     "type": "list",
                     "body": [
                         "Interfejs administracyjny do zarządzania wymiarami (projekty, zasoby, procesy, grupy projektowe).",
                         "Narzędzia do importu danych ze źródeł (Optima, Jira, Clockify, Excel).",
-                        "Moduły formularzy do raportowania zdarzeń operacyjnych (np. worklog, zużycia materiałów).",
+                        "Formularze do raportowania zdarzeń operacyjnych (np. worklog, zużycia materiałów).",
                         "Narzędzia do mapowania danych i obsługi wyjątków (review queue).",
-                        "Mechanizmy rekalkulacji danych per period (pipeline RAW → PROCESSED → FACT)."
+                        "Mechanizmy rekalkulacji danych per period (pipeline RAW → PROCESSED → FACT).",
+                        "API dla dostpeu do ddanych w formacie JSON dla dalszej wizualizacji w power BI, obróbki w excelu",
+                        "Dashboardy przekrojowe oraz jednostkowe (np. karta projektu, bilans projektu)"
                     ],
                     "children": []
                 },
                 {
                     "id": "ds_access_control_and_logic",
                     "label": "Kontrola dostępu i logika operacyjna",
+                    "cfo" : "Governance & Access Control (SoD, Ownership)",
                     "type": "list",
                     "body": [
-                        "System posiada role i kontrolę dostępu do operacji administracyjnych oraz raportowych.",
-                        "Logika biznesowa (np. walidacje danych, mapowania projektów, alokacje kosztów) realizowana jest w warstwie aplikacyjnej.",
+                        "W systemie użytkownikom przypisuje sie dostpe do poszczególnych elementów aplikacji. Dostep jest sprawdzany przy każdym żadaniu na serwerze",
+                        "Dostęp do poszczególnych projektów moze być realizowany na zasadzie przypisania użytkowników do danych grup projektowych",
                         "Ownerzy obszarów (działy, procesy, grupy projektowe) mogą mieć przypisane odpowiedzialności w systemie."
                     ],
-                    "children": []
-                },
-                {
-                    "id": "ds_reporting_interfaces",
-                    "label": "Interfejsy raportowe",
-                    "type": "list",
-                    "body": [
-                        "DS udostępnia API oraz bezpośredni dostęp do danych FACT dla narzędzi raportowych.",
-                        "Typowe narzędzia: Power BI, Excel, narzędzia analityczne.",
-                        "Raporty wizualne (dashboardy) są budowane w narzędziach BI, nie w DS."
-                    ],
-                    "children": []
-                },
-                {
-                    "id": "ds_not_bi_system",
-                    "label": "DS nie jest narzędziem wizualizacji",
-                    "type": "rule",
-                    "severity" : "warning",
-                    "body": "DS odpowiada za przygotowanie spójnego modelu danych oraz pipeline controllingu. Wizualizacja danych (dashboardy, wykresy, raporty zarządcze) powinna być realizowana w dedykowanych narzędziach BI takich jak Power BI lub Excel.",
                     "children": []
                 }
             ]
@@ -103,12 +89,14 @@
         {
             "id": "executive_overview",
             "label": "Cel biznesowy i zakres DS",
+            "cfo" : "Management Controlling Scope",
             "type": "section",
             "body": "DS to warstwa controllingu zarządczego, która spina projekty (Jira), czas pracy (Clockify) oraz koszty/przychody (Optima) w jeden, spójny model raportowania marży. System nie zastępuje ERP/MES, tylko dostarcza wiarygodne wyniki finansowe per projekt, proces, dział i grupę projektową – w cyklu miesięcznym (period).",
             "children": [
                 {
                     "id": "ds_business_outcomes",
                     "label": "Co dostajemy (MVP)",
+                    "cfo" : "Management Reporting Outcomes (MVP)",
                     "type": "list",
                     "body": [
                         "Marża i wynik per projekt oraz per grupa projektowa (cost & revenue center).",
@@ -122,6 +110,7 @@
                 {
                     "id": "ds_scope_boundaries",
                     "label": "Granice systemu (co DS robi / czego nie robi)",
+                    "cfo" : "Scope Boundaries (Not ERP/Not GL/Not BI)",
                     "type": "list",
                     "body": [
                         "DS robi: integruje dane, normalizuje, mapuje i publikuje fakty do raportów controllingu (RAW → PROCESSED → FACT).",
@@ -131,30 +120,6 @@
                         "DS nie jest narzędziem do zarządzania zadaniami – workflow i komentarze są w Jirze."
                     ],
                     "children": []
-                },
-                {
-                    "id": "ds_operational_requirements",
-                    "label": "Wymagania organizacyjne (minimum)",
-                    "type": "list",
-                    "body": [
-                        "Czas pracy: wpisy powinny być alokowane do projektu (Jira key) – wyjątki tylko dla przestojów/prac gospodarczych.",
-                        "Struktura organizacyjna: employee → department i działowe roll-up po poddrzewie (nie netto węzła).",
-                        "Procesy i zasoby: procesy mają ownerów obszaru oraz mapę dopuszczalnych zasobów (process → resources).",
-                        "Odpowiedzialność: ownerzy działów/procesów/grup projektowych domykają wyjątki i dbają o jakość danych; nie zastępują raportowania operacyjnego."
-                    ],
-                    "children": []
-                },
-                {
-                    "id": "ds_reporting_axes",
-                    "label": "Osie raportowania (jak zarząd patrzy na firmę)",
-                    "type": "list",
-                    "body": [
-                        "Oś biznesowa: project_group → projekty → marża i wynik.",
-                        "Oś organizacyjna: department (roll-up) → koszty pracy i overhead.",
-                        "Oś technologiczna: process → koszty etapów (labor/materials) i analiza odchyleń.",
-                        "Oś czasu: period (miesiąc) jako cykl zamknięcia i rekalkulacji."
-                    ],
-                    "children": []
                 }
             ]
         },
@@ -162,6 +127,7 @@
             {
                 "id": "dim_layer",
                 "label": "Warstwa DIM (wymiary i słowniki aplikacji)",
+                "cfo" : "Master Data Dimensions (SSOT for Reporting)",
                 "type": "section",
                 "body": "Wymiary są fundamentem spójnego pivotowania danych. Szczególny nacisk: DIM Projects (klucze, grupy, mapowania do działów/procesów).",
                 "children": [
@@ -758,28 +724,10 @@
 
             {
                 "id": "raw_layer",
-                "label": "Warstwa RAW (ingest i niezmienność)",
+                "label": "Warstwa RAW (surowe dane importowane z Optimy, Clockify i innych źródeł)",
                 "type": "section",
                 "body": "Opis tabel RAW, ich pochodzenia oraz zasad walidacji wejściowej i wykrywania duplikatów.",
                 "children": [
-                    {
-                        "id": "raw_sources_catalog",
-                        "label": "Katalog źródeł i mapowanie na tabele RAW",
-                        "type": "table",
-                        "body": "Tabela mapująca: źródło → tabela RAW → klucz unikalności → podstawowe pola (daty, ref, kwoty).",
-                        "children": []
-                    },
-                    {
-                        "id": "raw_ingest_rules",
-                        "label": "Reguły importu RAW",
-                        "type": "list",
-                        "body": [
-                            "deduplikacja po kluczu źródłowym (source_id + external_id).",
-                            "walidacje minimalne (daty, kwoty, identyfikatory).",
-                            "przypisanie period_id na wejściu (jeśli możliwe) lub w Normalize."
-                        ],
-                        "children": []
-                    }
                 ]
             },
 
@@ -789,51 +737,6 @@
                 "type": "section",
                 "body": "Opis tabel pośrednich, które porządkują dane do faktów: dopinają project_id, margin_level i przygotowują koszty do publikacji.",
                 "children": [
-                    {
-                        "id": "processed_norm",
-                        "label": "Normalize (klucze DIM + period)",
-                        "type": "section",
-                        "body": "Reguły uzupełniania FK (project/employee/department/process) i obsługa braków (kolejka do mapowania).",
-                        "children": []
-                    },
-                    {
-                        "id": "processed_matching",
-                        "label": "Resolve (dopasowania i splity)",
-                        "type": "section",
-                        "body": "Reguły dopasowań: dokumenty kosztowe ↔ dekretacje; pozycje sprzedażowe ↔ projekty; splity na N projektów.",
-                        "children": [
-                            {
-                                "id": "matching_purchase_allocation",
-                                "label": "Dopasowanie zakupów (matching)",
-                                "type": "list",
-                                "body": [
-                                    "matching po numerze dokumentu, kwocie i opcjonalnie kontrahencie.",
-                                    "obsługa niejednoznaczności: oznaczenie do review / reguły rozstrzygające.",
-                                    "wynik: proc_* z już rozbitymi alokacjami."
-                                ],
-                                "children": []
-                            }
-                        ]
-                    },
-                    {
-                        "id": "processed_classification",
-                        "label": "Klasyfikacja kosztów (margin_level)",
-                        "type": "section",
-                        "body": "Zasady obowiązkowego margin_level: skąd się bierze, jak jest walidowany, jak obsługujemy wyjątki.",
-                        "children": [
-                            {
-                                "id": "margin_level_rules",
-                                "label": "Reguły margin_level",
-                                "type": "list",
-                                "body": [
-                                    "margin_level obowiązkowe w PROCESSED i FACT.",
-                                    "worklog zawsze margin_level=1.",
-                                    "overhead: margin_level może być >1; zasady przypisania zależne od typu kosztu."
-                                ],
-                                "children": []
-                            }
-                        ]
-                    }
                 ]
             },
 
@@ -935,28 +838,13 @@
                     }
                 ]
             },
-
             {
                 "id": "app_modules_plan",
                 "label": "Plan modułów aplikacji (operacje na pipeline)",
                 "type": "section",
                 "body": "Spis komponentów i akcji aplikacji, które realizują pipeline per period: import, normalize, compute, publish, review.",
                 "children": [
-                    {
-                        "id": "ui_actions",
-                        "label": "Akcje UI/CLI per period",
-                        "type": "list",
-                        "body": [
-                            "Import RAW (per źródło) → walidacja → zapis.",
-                            "Normalize keys → kolejka mapowań (projekty/kontrahenci).",
-                            "Compute labor rates → wartościowanie worklog.",
-                            "Publish FACT (truncate+insert per period).",
-                            "Review: lista rekordów do ręcznych mapowań/reguł."
-                        ],
-                        "children": []
-                    }
                 ]
             }
-
         ]
 }

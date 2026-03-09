@@ -1,0 +1,562 @@
+{
+  "contract_version": "1.0.0",
+  "meta": {
+    "name": "Laravel DS – Kontrakt ACL + UI Schema Driven",
+    "language": "pl",
+    "rendering_hint": "Każdy węzeł ma {id,label,type,body,children}. Renderer może rekurencyjnie renderować label jako nagłówek, body jako opis i children jako podsekcje.",
+    "definitions": {
+      "acl": "Access Control List; warstwa reguł dostępu do zasobów, metod HTTP i pól danych.",
+      "page": "Strona / resource systemowy zarejestrowany w tabeli pages; jednostka routingu, nawigacji i ACL.",
+      "access_context": "Znormalizowany obiekt runtime opisujący wynik rozstrzygnięcia ACL dla konkretnego użytkownika i konkretnego page/resource.",
+      "ui_definition": "Typed, deklaratywna definicja UI tworzona w PHP przez fluent DSL, niezależna od konkretnego frontendu.",
+      "ui_compiler": "Warstwa, która łączy UI Definition, AccessContext i opcjonalnie Entity/Data Schema w finalny kontrakt UI dla renderera lub API.",
+      "options_provider": "Provider list opcji/selectów, zwracający zunifikowany format value/label/meta, używalny przez Blade, Livewire i frontend SPA.",
+      "hard_coded_definition": "Wersjonowana definicja w kodzie aplikacji (PHP), a nie dane generowane dynamicznie z bazy w runtime."
+    }
+  },
+  "tree": [
+    {
+      "id": "acl_ui_contract_root",
+      "label": "Kontrakt ACL + UI Schema Driven",
+      "type": "section",
+      "body": [
+        "Ten dokument opisuje docelowy kontrakt techniczny dla dwóch spójnych subsystemów aplikacji Laravel DS: (1) DB-driven ACL oraz (2) typed UI schema DSL / compiler.",
+        "Kontrakt ma być źródłem prawdy dla architektury backendowej, runtime resolverów oraz sposobu generowania finalnego UI dla Blade, Livewire i frontendów SPA (React/Vue/Angular).",
+        "Zakładamy świadome rozdzielenie warstw: dane i relacje, bezpieczeństwo dostępu, definicje UI, resolvery opcji oraz compiler finalnego kontraktu widoku."
+      ],
+      "children": []
+    },
+    {
+      "id": "goals_and_non_goals",
+      "label": "Cele i non-goals",
+      "type": "section",
+      "body": [],
+      "children": [
+        {
+          "id": "goals",
+          "label": "Cele",
+          "type": "list",
+          "body": [
+            "Jedno źródło prawdy dla dostępu do pages/resources i ich metod HTTP.",
+            "Jedno źródło prawdy dla definicji UI używanych w Blade, Livewire i frontendach SPA.",
+            "Silne rozdzielenie bezpieczeństwa backendowego od prezentacji UI.",
+            "Typed fluent DSL w PHP zamiast luźnych tablic z przypadkowymi kluczami.",
+            "Finalny kontrakt runtime bez niespodzianek: przewidywalny shape, znane typy, jawne domyślności.",
+            "Możliwość dokładania kolejnych silników UI (table, form, cards, filters, kanban, calendar) bez przepisywania rdzenia."
+          ],
+          "children": []
+        },
+        {
+          "id": "non_goals",
+          "label": "Non-goals",
+          "type": "list",
+          "body": [
+            "Brak generatora CRUD działającego automatycznie wyłącznie z migracji lub Eloquent modelu.",
+            "Brak traktowania frontendu jako źródła prawdy dla bezpieczeństwa pól i metod.",
+            "Brak ukrytej magii typu: relacja sama zgaduje options, UI samo zgaduje ACL, renderer sam modyfikuje kontrakt.",
+            "Brak umieszczania logiki kontraktów w resources/ lub storage/; to jest kod aplikacyjny w app/."
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "db_acl_foundation",
+      "label": "Fundament DB-driven ACL",
+      "type": "section",
+      "body": "Podstawą bezpieczeństwa jest rejestr stron/resources w pages oraz granularne przypisania user-page w user_pages.",
+      "children": [
+        {
+          "id": "db_acl_tables",
+          "label": "Struktura danych ACL (tabele)",
+          "type": "section",
+          "body": [],
+          "children": [
+            {
+              "id": "table_users_acl_relevant",
+              "label": "Tabela users – pola istotne dla ACL",
+              "type": "list",
+              "body": [
+                "id – identyfikator użytkownika.",
+                "role – globalna rola systemowa; wartość admin daje pełny override ACL.",
+                "is_active – użytkownik nieaktywny nie powinien otrzymać dostępu niezależnie od ACL.",
+                "email / password / remember_token – obsługa uwierzytelnienia; poza zakresem samego ACL, ale warunkuje runtime access."
+              ],
+              "children": []
+            },
+            {
+              "id": "table_pages_acl_relevant",
+              "label": "Tabela pages – registry zasobów",
+              "type": "list",
+              "body": [
+                "id – identyfikator page/resource.",
+                "name – techniczna nazwa strony, unikalna w systemie.",
+                "endpoint – techniczny identyfikator routingu/resource używany do powiązania requestu z page.",
+                "frontend_url – opcjonalny URL UI.",
+                "label – etykieta do menu i widoków.",
+                "group_key / group_label / menu_order / parent_id / is_menu – metadata nawigacji, niezależna od samego ACL ale współdzielona z pages.",
+                "is_active – page nieaktywny nie powinien być oferowany w nawigacji i co do zasady nie powinien przechodzić przez resolver dostępu.",
+                "requires_auth – page publiczny może istnieć, ale nadal podlega jednoznacznemu kontraktowi routingu.",
+                "settings – rozszerzalne meta page-level do przyszłych polityk runtime."
+              ],
+              "children": []
+            },
+            {
+              "id": "table_user_pages_acl_relevant",
+              "label": "Tabela user_pages – granularny dostęp user → page",
+              "type": "list",
+              "body": [
+                "Granulat: dokładnie jeden rekord per (user_id, page_id).",
+                "can_get / can_post / can_patch / can_delete – matryca dostępu na poziomie metod HTTP.",
+                "is_admin – lokalny override pełnego dostępu w ramach konkretnego page/resource.",
+                "view_restricted_fields – deny-list pól niewidocznych przy odczycie.",
+                "edit_restricted_fields – deny-list pól niezapisywalnych przy POST/PATCH/PUT.",
+                "created_by / updated_by / timestamps – audyt konfiguracji ACL.",
+                "unique(user_id, page_id) – gwarancja jednego stanu dostępu na zasób dla użytkownika."
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "acl_rules",
+          "label": "Reguły ACL",
+          "type": "section",
+          "body": [],
+          "children": [
+            {
+              "id": "acl_rule_global_admin",
+              "label": "Global admin",
+              "type": "list",
+              "body": [
+                "Jeśli users.role = admin, użytkownik ma pełny dostęp do wszystkich pages/resources i wszystkich metod.",
+                "Global admin ignoruje user_pages oraz restricted fields.",
+                "Global admin może widzieć i edytować wszystkie pola wszystkich zasobów."
+              ],
+              "children": []
+            },
+            {
+              "id": "acl_rule_page_admin",
+              "label": "Local page admin",
+              "type": "list",
+              "body": [
+                "Jeśli istnieje rekord user_pages dla (user_id, page_id) i user_pages.is_admin = 1, użytkownik ma pełny dostęp do metod w obrębie tego page/resource.",
+                "Local page admin ignoruje restricted fields dla tej strony.",
+                "Local page admin nie dostaje automatycznie dostępu do innych pages/resources."
+              ],
+              "children": []
+            },
+            {
+              "id": "acl_rule_standard_matrix",
+              "label": "Standard matrix per HTTP method",
+              "type": "list",
+              "body": [
+                "GET i HEAD mapują się na can_get.",
+                "POST mapuje się na can_post.",
+                "PATCH i PUT mapują się na can_patch.",
+                "DELETE mapuje się na can_delete.",
+                "Brak rekordu user_pages oznacza brak dostępu dla nie-admina.",
+                "Brak flagi dla metody oznacza deny."
+              ],
+              "children": []
+            },
+            {
+              "id": "acl_rule_field_restrictions",
+              "label": "Field-level restrictions",
+              "type": "list",
+              "body": [
+                "view_restricted_fields działa bezwzględnie po stronie backendu dla odczytu danych i schematu UI; pole nie może być tylko ukryte w frontendzie.",
+                "edit_restricted_fields działa bezwzględnie po stronie backendu dla POST/PATCH/PUT; payload musi być filtrowany lub walidowany przed zapisem.",
+                "Restricted fields nie obowiązują global admina ani local page admina.",
+                "Field-level restrictions są częścią bezpieczeństwa danych, a nie tylko konfiguracji UI."
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "access_context_contract",
+          "label": "Kontrakt runtime: AccessContext",
+          "type": "code",
+          "body": {
+            "format": "json",
+            "content": {
+              "page_key": "projects",
+              "allowed": true,
+              "is_global_admin": false,
+              "is_page_admin": false,
+              "allowed_methods": {
+                "GET": true,
+                "POST": false,
+                "PATCH": true,
+                "PUT": true,
+                "DELETE": false
+              },
+              "view_restricted_fields": [
+                "margin",
+                "internal_notes"
+              ],
+              "edit_restricted_fields": [
+                "margin",
+                "approved_by"
+              ],
+              "page": {
+                "id": 12,
+                "name": "projects",
+                "endpoint": "projects",
+                "label": "Projekty"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "access_context_notes",
+              "label": "Uwagi do AccessContext",
+              "type": "list",
+              "body": [
+                "AccessContext jest wynikiem resolvera i jest znormalizowany; niższe warstwy nie powinny analizować surowych rekordów user_pages.",
+                "AccessContext może być konsumowany przez middleware, serwisy danych, compiler UI i renderery SSR.",
+                "allowed_methods to wynik finalny po zsumowaniu global/page overrides oraz standard matrix."
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "runtime_acl_layers",
+      "label": "Warstwy runtime ACL",
+      "type": "section",
+      "body": [],
+      "children": [
+        {
+          "id": "middleware_layer",
+          "label": "Middleware / request gate",
+          "type": "list",
+          "body": [
+            "Mapuje request na page/resource (np. przez endpoint routy lub jawny identyfikator page).",
+            "Buduje AccessContext dla zalogowanego użytkownika i bieżącego requestu.",
+            "Decyduje allow/deny na poziomie requestu i kodu HTTP.",
+            "Nie powinno filtrować finalnego response payloadu; to zadanie niższych warstw danych lub compilerów."
+          ],
+          "children": []
+        },
+        {
+          "id": "data_access_layer",
+          "label": "Warstwa dostępu do danych",
+          "type": "list",
+          "body": [
+            "Filtruje payload wejściowy względem edit_restricted_fields przed create/update.",
+            "Filtruje rekordy wyjściowe względem view_restricted_fields przed serializacją i renderem.",
+            "Może udostępniać helpery typu sanitizeInputByAccess() oraz filterOutputByAccess().",
+            "Nie powinna ufać frontendowi ani UI schema jako warstwie bezpieczeństwa."
+          ],
+          "children": []
+        },
+        {
+          "id": "ui_compiler_layer_acl",
+          "label": "UI compiler a ACL",
+          "type": "list",
+          "body": [
+            "Compiler UI konsumuje AccessContext i na jego podstawie ukrywa pola niedostępne do odczytu, ustawia read-only, wyłącza akcje create/update/delete i przycina sekcje formularzy.",
+            "Compiler nie zastępuje backendowego bezpieczeństwa danych; jego rola jest prezentacyjna i ergonomiczna.",
+            "Ten sam AccessContext powinien działać dla JSON API i SSR/Blade."
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "ui_definition_system",
+      "label": "Typed UI Definition System",
+      "type": "section",
+      "body": "UI nie jest generowane automatycznie z bazy. Jest definiowane w kodzie aplikacji przez typed fluent DSL i kompilowane do stabilnego kontraktu runtime.",
+      "children": [
+        {
+          "id": "ui_core_principles",
+          "label": "Zasady rdzenia UI DSL",
+          "type": "list",
+          "body": [
+            "Definicje UI są hard-coded i wersjonowane w repo jako kod PHP.",
+            "Definicje są typed: dozwolone klucze i typy są zamknięte przez klasy i value objects, a nie przez dowolne tablice.",
+            "Root definition składa się z registry pól oraz sekcji rendererowych (form, table, cards, itd.).",
+            "Top-level fluent DSL orkiestruje strukturę, ale szczegóły rendererów są delegowane do niższych DSL-i.",
+            "Finalny output definition/build ma płaskie, przewidywalne drzewko."
+          ],
+          "children": []
+        },
+        {
+          "id": "ui_layers",
+          "label": "Warstwy UI DSL",
+          "type": "section",
+          "body": [],
+          "children": [
+            {
+              "id": "ui_layer_top_level",
+              "label": "Top-level DSL",
+              "type": "list",
+              "body": [
+                "Odpowiada za utworzenie definicji encji/widoku, registry pól oraz podpięcie rendererów.",
+                "Nie powinien znać szczegółów wszystkich opcji konkretnego renderera.",
+                "Przykładowa rola: UI::make('projects')->field('name')->...->table('index')->...->form('create')->..."
+              ],
+              "children": []
+            },
+            {
+              "id": "ui_layer_field_registry",
+              "label": "Field registry",
+              "type": "list",
+              "body": [
+                "Każde pole ma jedną wspólną tożsamość logiczną w registry (name, label, logical type, relation, options definition, base meta).",
+                "Renderery nie powielają pełnej definicji pola; referencjonują pole po nazwie i dodają własne override/config.",
+                "To umożliwia spójne użycie tego samego pola w form, table, cards, filters i SSR."
+              ],
+              "children": []
+            },
+            {
+              "id": "ui_layer_renderer_modules",
+              "label": "Renderer modules",
+              "type": "list",
+              "body": [
+                "Każdy renderer (form, table, cards, filters, future kanban/calendar) ma własny DSL, własne typy i własną walidację.",
+                "Rozszerzenie systemu o nowy renderer powinno wymagać dopisania nowego modułu, nie przepisywania root DSL.",
+                "To realizuje podejście OCP/SRP: nowy silnik UI dokładamy przez nowy moduł sekcji."
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "ui_definition_shape",
+          "label": "Przykładowy znormalizowany kontrakt UI Definition",
+          "type": "code",
+          "body": {
+            "format": "json",
+            "content": {
+              "entity": "projects",
+              "fields": {
+                "name": {
+                  "label": "Nazwa",
+                  "type": "string"
+                },
+                "client_id": {
+                  "label": "Klient",
+                  "type": "relation",
+                  "relation": "clients",
+                  "options": {
+                    "source": "model",
+                    "provider": "clients"
+                  }
+                },
+                "margin": {
+                  "label": "Marża",
+                  "type": "number"
+                }
+              },
+              "forms": {
+                "create": {
+                  "fields": [
+                    "name",
+                    "client_id",
+                    "margin"
+                  ]
+                }
+              },
+              "tables": {
+                "index": {
+                  "columns": [
+                    "name",
+                    "client_id",
+                    "margin"
+                  ]
+                }
+              },
+              "cards": {
+                "mobile": {
+                  "title": "name",
+                  "meta": [
+                    "client_id",
+                    "margin"
+                  ]
+                }
+              }
+            }
+          },
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "options_contract",
+      "label": "Kontrakt list opcji / selectów",
+      "type": "section",
+      "body": "Lista opcji jest osobnym subsystemem. Pole deklaruje źródło opcji, ale nie pobiera ich samo. Rozwiązanie źródła odbywa się przez provider/resolver.",
+      "children": [
+        {
+          "id": "options_principles",
+          "label": "Zasady",
+          "type": "list",
+          "body": [
+            "Options to nie jest efekt uboczny relacji; relacja danych i źródło opcji to dwa różne pojęcia.",
+            "OptionsDefinition musi wspierać co najmniej: static, model/provider, enum/value-map, callback/custom; w przyszłości remote i dependent options.",
+            "Wszyscy konsumenci (Blade, Livewire, React/Vue/Angular) dostają ten sam shape value/label/meta.",
+            "Na starcie preferowany jest tryb embedded dla małych słowników; system powinien jednak przewidywać remote mode."
+          ],
+          "children": []
+        },
+        {
+          "id": "options_shape",
+          "label": "Shape pojedynczej opcji i kolekcji",
+          "type": "code",
+          "body": {
+            "format": "json",
+            "content": {
+              "mode": "embedded",
+              "items": [
+                {
+                  "value": 1,
+                  "label": "Acme Sp. z o.o.",
+                  "disabled": false,
+                  "meta": {}
+                },
+                {
+                  "value": 2,
+                  "label": "Beta SA",
+                  "disabled": false,
+                  "meta": {}
+                }
+              ]
+            }
+          },
+          "children": []
+        },
+        {
+          "id": "options_resolver",
+          "label": "OptionsResolver",
+          "type": "list",
+          "body": [
+            "Przyjmuje OptionsDefinition i opcjonalny context runtime, zwraca znormalizowaną kolekcję opcji.",
+            "Może używać provider registry do rozwiązywania źródeł model/custom/static.",
+            "Jest współdzielony przez compiler UI, renderery SSR i ewentualne endpointy /ui/options/*."
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "php_class_map",
+      "label": "Mapa klas i odpowiedzialności w app/",
+      "type": "section",
+      "body": [],
+      "children": [
+        {
+          "id": "php_class_map_acl",
+          "label": "Subsystem ACL (app/Access)",
+          "type": "list",
+          "body": [
+            "AccessContext – value object wyniku ACL.",
+            "AccessResolver – buduje AccessContext na podstawie User + Page + user_pages + request method.",
+            "PageAccessMiddleware – request gate na poziomie routingu.",
+            "FieldAccessService / helpers – filtracja payloadów wejściowych i wyjściowych po polach."
+          ],
+          "children": []
+        },
+        {
+          "id": "php_class_map_ui",
+          "label": "Subsystem UI (app/UI)",
+          "type": "list",
+          "body": [
+            "UI / UiBuilder – top-level fluent DSL.",
+            "FieldDefinition / FieldBuilder – registry pól i ich definicji logicznych.",
+            "FormBuilder / TableBuilder / CardsBuilder – moduły rendererowe low-level DSL.",
+            "UiDefinition – znormalizowany obiekt definicji po build().",
+            "UiCompiler – łączy UiDefinition, AccessContext, OptionsResolver i ewentualnie Entity/Data Schema.",
+            "OptionsDefinition / OptionsResolver / providers – subsystem list opcji."
+          ],
+          "children": []
+        },
+        {
+          "id": "php_class_map_entity_defs",
+          "label": "Definicje per encja / widok",
+          "type": "list",
+          "body": [
+            "Definicje konkretnych UI powinny żyć jako kod w app/UI/Entities lub app/UI/Definitions.",
+            "Przykłady: ProjectUI.php, UserUI.php, InvoiceUI.php, CostItemUI.php.",
+            "To są hard-coded definicje wersjonowane w repo; nie trafiają do storage ani resources."
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "hard_coded_defs_policy",
+      "label": "Polityka hard-coded definicji",
+      "type": "section",
+      "body": [],
+      "children": [
+        {
+          "id": "hard_coded_defs_rules",
+          "label": "Zasady",
+          "type": "list",
+          "body": [
+            "Hard-coded definicje UI są akceptowanym i preferowanym mechanizmem — pod warunkiem, że są typed, wersjonowane i kompilowane do stabilnego kontraktu.",
+            "Hard-coded nie oznacza rozproszonych ifów po kontrolerach; definicje mają być skupione w subsystemie UI i jego klasach definicyjnych.",
+            "Hard-coded ACL policy jest niedozwolone; źródłem prawdy dla per-page access pozostaje baza danych (pages + user_pages), z wyjątkiem global role admin w users.",
+            "Definicje rendererów i ich typów można rozbudowywać modułowo bez łamania wcześniej ustalonego kontraktu runtime."
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "resolver_flows",
+      "label": "Przepływy resolverów i compilerów",
+      "type": "section",
+      "body": [],
+      "children": [
+        {
+          "id": "flow_request_acl",
+          "label": "Flow: request → ACL",
+          "type": "list",
+          "body": [
+            "Request trafia do routy/controllera/middleware.",
+            "Resolver mapuje request na page/resource.",
+            "AccessResolver odczytuje user, page i user_pages, po czym buduje AccessContext.",
+            "Middleware decyduje allow/deny dla requestu.",
+            "Niższe warstwy danych stosują field-level filtering na podstawie AccessContext."
+          ],
+          "children": []
+        },
+        {
+          "id": "flow_ui_compile",
+          "label": "Flow: definition → compiled UI",
+          "type": "list",
+          "body": [
+            "Kod aplikacji tworzy UiDefinition przez typed fluent DSL.",
+            "Compiler pobiera AccessContext dla bieżącego użytkownika i page/resource.",
+            "Compiler rozwiązuje options przez OptionsResolver.",
+            "Compiler usuwa pola z view_restricted_fields, ustawia read-only dla edit_restricted_fields oraz ukrywa sekcje/akcje niedozwolone przez allowed_methods.",
+            "Finalny compiled contract jest oddawany do Blade, Livewire lub JSON API."
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "implementation_guidelines",
+      "label": "Wytyczne implementacyjne",
+      "type": "list",
+      "body": [
+        "Subsystem ACL i subsystem UI trzymać osobno w app/Access i app/UI.",
+        "Zachować spójne nazewnictwo: Page, UserPage, AccessContext, UiDefinition, UiCompiler, OptionsResolver.",
+        "Nie przenosić bezpieczeństwa do frontendu; frontend jest wyłącznie konsumentem kontraktu.",
+        "Unikać bezpośredniego publicznego mutowania drzew typu $ui->fields['name']->...; preferować metody builderów i zamknięte value objects.",
+        "Każdy finalny kontrakt runtime powinien mieć ustalony shape i stabilne domyślności.",
+        "Każdy renderer powinien mieć własny mały DSL, własną walidację i własny normalized fragment outputu."
+      ],
+      "children": []
+    }
+  ]
+}
+
