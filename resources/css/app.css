@@ -8,4 +8,19 @@
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+    --color-background: 248 250 252;
+    --color-foreground: 15 23 42;
+
+    --color-surface: 255 255 255;
+    --color-surface-muted: 248 250 252;
+
+    --color-border: 226 232 240;
+    --color-border-strong: 203 213 225;
+
+    --color-primary: 15 23 42;
+    --color-primary-foreground: 255 255 255;
+
+    --color-muted: 100 116 139;
+    --color-danger: 225 29 72;
+    --color-danger-ring: 251 113 133;
 }

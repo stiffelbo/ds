@@ -26,25 +26,27 @@
 
 <div class="{{ implode(' ', $gridClasses) }}">
     @if($resolvedLabel)
-        <label for="{{ $field }}" class="mb-2 block text-sm font-medium text-slate-800">
-            {{ $resolvedLabel }}
+        <label for="{{ $field }}" class="label p-0 pb-2">
+            <span class="label-text text-sm font-medium">
+                {{ $resolvedLabel }}
 
-            @if($required)
-                <span class="ml-1 text-rose-500">*</span>
-            @endif
+                @if($required)
+                    <span class="ml-1 text-error">*</span>
+                @endif
+            </span>
         </label>
     @endif
 
     {{ $slot }}
 
     @if(!$error && $helperText)
-        <p class="mt-2 text-sm leading-5 text-slate-500">
+        <p class="mt-2 text-sm text-base-content/70">
             {{ $helperText }}
         </p>
     @endif
 
     @if($error)
-        <p class="mt-2 text-sm font-medium leading-5 text-rose-600">
+        <p class="mt-2 text-sm font-medium text-error">
             {{ $error }}
         </p>
     @endif

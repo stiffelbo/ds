@@ -29,20 +29,20 @@
         $gridClasses[] = "xl:col-span-{$xl}";
     }
 
-    $boxClasses = 'h-4 w-4 border-slate-300 text-slate-900 focus:ring-2 focus:ring-slate-400';
+    $boxClasses = 'radio radio-sm';
     if ($error) {
-        $boxClasses = 'h-4 w-4 border-rose-400 text-rose-600 focus:ring-2 focus:ring-rose-400';
+        $boxClasses .= ' radio-error';
     }
 @endphp
 
 <div class="{{ implode(' ', $gridClasses) }}">
-    <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+    <div class="rounded-box border border-base-300 bg-base-100 px-4 py-3">
         @if($label)
-            <div class="mb-3 text-sm font-medium text-slate-800">
+            <div class="mb-3 text-sm font-medium">
                 {{ $label }}
 
                 @if($required)
-                    <span class="ml-1 text-rose-500">*</span>
+                    <span class="ml-1 text-error">*</span>
                 @endif
             </div>
         @endif
@@ -56,7 +56,7 @@
                     $optionId = $name . '_' . $index;
                 @endphp
 
-                <label for="{{ $optionId }}" class="flex items-center gap-3 text-sm text-slate-700">
+                <label for="{{ $optionId }}" class="label cursor-pointer justify-start gap-3 p-0">
                     <input
                         type="radio"
                         name="{{ $name }}"
@@ -67,19 +67,19 @@
                         {{ $attributes->class([$boxClasses]) }}
                     />
 
-                    <span>{{ $optionLabel }}</span>
+                    <span class="label-text text-sm">{{ $optionLabel }}</span>
                 </label>
             @endforeach
         </div>
 
         @if(!$error && $helperText)
-            <p class="mt-3 text-sm leading-5 text-slate-500">
+            <p class="mt-3 text-sm text-base-content/70">
                 {{ $helperText }}
             </p>
         @endif
 
         @if($error)
-            <p class="mt-3 text-sm font-medium leading-5 text-rose-600">
+            <p class="mt-3 text-sm font-medium text-error">
                 {{ $error }}
             </p>
         @endif

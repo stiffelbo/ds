@@ -14,9 +14,9 @@
     $helperText = $node['helper_text'] ?? null;
     $required = (bool) ($node['required'] ?? false);
 
-    $boxClasses = 'h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-2 focus:ring-slate-400';
+    $checkboxClasses = 'checkbox checkbox-sm mt-0.5';
     if ($error) {
-        $boxClasses = 'h-4 w-4 rounded border-rose-400 text-rose-600 focus:ring-2 focus:ring-rose-400';
+        $checkboxClasses .= ' checkbox-error';
     }
 
     $xs = (int) ($node['xs'] ?? 12);
@@ -34,45 +34,49 @@
 @endphp
 
 <div class="{{ implode(' ', $gridClasses) }}">
-    <div class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <div class="pt-0.5">
-            <input type="hidden" name="{{ $name }}" value="0">
+    <div class="rounded-box border border-base-300 bg-base-100 px-4 py-3 shadow-sm">
+        <div class="flex items-start gap-3">
+            <div class="pt-0.5">
+                <input type="hidden" name="{{ $name }}" value="0">
 
-            <input
-                type="checkbox"
-                name="{{ $name }}"
-                id="{{ $name }}"
-                value="1"
-                @checked($checked)
-                @disabled($disabled || $readonly)
-                {{ $attributes->merge([
-                    'class' => $boxClasses,
-                ]) }}
-            />
-        </div>
+                <input
+                    type="checkbox"
+                    name="{{ $name }}"
+                    id="{{ $name }}"
+                    value="1"
+                    @checked($checked)
+                    @disabled($disabled || $readonly)
+                    {{ $attributes->merge([
+                        'class' => $checkboxClasses,
+                    ]) }}
+                />
+            </div>
 
-        <div class="min-w-0">
-            @if($label)
-                <label for="{{ $name }}" class="block text-sm font-medium text-slate-800">
-                    {{ $label }}
+            <div class="min-w-0 flex-1">
+                @if($label)
+                    <label for="{{ $name }}" class="label cursor-pointer justify-start gap-2 p-0">
+                        <span class="label-text font-medium">
+                            {{ $label }}
+                        </span>
 
-                    @if($required)
-                        <span class="ml-1 text-rose-500">*</span>
-                    @endif
-                </label>
-            @endif
+                        @if($required)
+                            <span class="text-error">*</span>
+                        @endif
+                    </label>
+                @endif
 
-            @if(!$error && $helperText)
-                <p class="mt-1 text-sm leading-5 text-slate-500">
-                    {{ $helperText }}
-                </p>
-            @endif
+                @if(!$error && $helperText)
+                    <div class="mt-1 text-sm text-base-content/70">
+                        {{ $helperText }}
+                    </div>
+                @endif
 
-            @if($error)
-                <p class="mt-1 text-sm font-medium leading-5 text-rose-600">
-                    {{ $error }}
-                </p>
-            @endif
+                @if($error)
+                    <div class="mt-1 text-sm text-error">
+                        {{ $error }}
+                    </div>
+                @endif
+            </div>
         </div>
     </div>
 </div>

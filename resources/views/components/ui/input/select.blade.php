@@ -21,27 +21,27 @@
         : [(string) $value];
 
     $sizeClasses = match($size) {
-        'small' => 'h-8 px-3 text-sm',
-        'large' => 'h-12 px-4 text-base',
-        default => 'h-10 px-3 text-sm',
+        'small' => 'select-sm',
+        'large' => 'select-lg',
+        default => '',
     };
 
     $variantClasses = match($variant) {
-        'text' => 'border-transparent bg-transparent shadow-none focus:ring-0 focus:border-slate-300',
-        'elevated' => 'border border-slate-200 bg-white shadow-sm focus:border-slate-400 focus:ring-slate-300',
-        default => 'border border-slate-300 bg-white focus:border-slate-400 focus:ring-slate-300',
+        'text' => 'select-ghost',
+        'elevated' => 'select-bordered',
+        default => 'select-bordered',
     };
 
     if ($error) {
-        $variantClasses = 'border border-rose-400 bg-white focus:border-rose-500 focus:ring-rose-400';
+        $variantClasses .= ' select-error';
     }
 
-    $baseClasses = 'block w-full rounded-lg transition focus:outline-none focus:ring-2';
-    $inputClasses = implode(' ', [
+    $baseClasses = 'select w-full';
+    $inputClasses = trim(implode(' ', [
         $baseClasses,
         $variantClasses,
         $sizeClasses,
-    ]);
+    ]));
 
     $selectName = $multiple ? $name.'[]' : $name;
 @endphp

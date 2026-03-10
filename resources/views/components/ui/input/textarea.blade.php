@@ -15,28 +15,53 @@
     $disabled = $node['disabled'] ?? false;
     $rows = $node['rows'] ?? 4;
 
+    /*
+    |--------------------------------------------------------------------------
+    | Size classes (daisyUI)
+    |--------------------------------------------------------------------------
+    */
+
     $sizeClasses = match($size) {
-        'small' => 'px-3 py-2 text-sm',
-        'large' => 'px-4 py-3 text-base',
-        default => 'px-3 py-2.5 text-sm',
+        'small' => 'textarea-sm',
+        'large' => 'textarea-lg',
+        default => '',
     };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Variant classes (mapped to daisyUI)
+    |--------------------------------------------------------------------------
+    */
 
     $variantClasses = match($variant) {
-        'text' => 'border-transparent bg-transparent shadow-none focus:ring-0 focus:border-slate-300',
-        'elevated' => 'border border-slate-200 bg-white shadow-sm focus:border-slate-400 focus:ring-slate-300',
-        default => 'border border-slate-300 bg-white focus:border-slate-400 focus:ring-slate-300',
+        'text' => 'textarea-ghost',
+        'elevated' => 'textarea-bordered',
+        default => 'textarea-bordered',
     };
 
+    /*
+    |--------------------------------------------------------------------------
+    | Error override
+    |--------------------------------------------------------------------------
+    */
+
     if ($error) {
-        $variantClasses = 'border border-rose-400 bg-white focus:border-rose-500 focus:ring-rose-400';
+        $variantClasses .= ' textarea-error';
     }
 
-    $baseClasses = 'block w-full rounded-lg transition focus:outline-none focus:ring-2';
-    $inputClasses = implode(' ', [
+    /*
+    |--------------------------------------------------------------------------
+    | Base classes
+    |--------------------------------------------------------------------------
+    */
+
+    $baseClasses = 'textarea w-full';
+
+    $inputClasses = trim(implode(' ', [
         $baseClasses,
         $variantClasses,
         $sizeClasses,
-    ]);
+    ]));
 @endphp
 
 <x-ui.form.field-shell

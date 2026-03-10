@@ -24,28 +24,30 @@
     @endif
 
     @if(!empty($runtime['title']) || !empty($runtime['description']))
-        <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            @if(!empty($runtime['title']))
-                <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
-                    {{ $runtime['title'] }}
-                </h1>
-            @endif
+        <div class="card border border-base-300 bg-base-100 shadow-sm">
+            <div class="card-body p-6">
+                @if(!empty($runtime['title']))
+                    <h1 class="text-2xl font-semibold tracking-tight">
+                        {{ $runtime['title'] }}
+                    </h1>
+                @endif
 
-            @if(!empty($runtime['description']))
-                <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                    {{ $runtime['description'] }}
-                </p>
-            @endif
+                @if(!empty($runtime['description']))
+                    <p class="mt-2 max-w-3xl text-sm leading-6 text-base-content/70">
+                        {{ $runtime['description'] }}
+                    </p>
+                @endif
 
-            @if(!empty($runtime['help']) && is_array($runtime['help']))
-                <div class="mt-4 space-y-2">
-                    @foreach($runtime['help'] as $hint)
-                        <div class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
-                            {{ $hint }}
-                        </div>
-                    @endforeach
-                </div>
-            @endif
+                @if(!empty($runtime['help']) && is_array($runtime['help']))
+                    <div class="mt-4 space-y-2">
+                        @foreach($runtime['help'] as $hint)
+                            <div class="alert alert-soft">
+                                <span class="text-sm">{{ $hint }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
         </div>
     @endif
 
@@ -56,10 +58,10 @@
     </div>
 
     @if($hasSubmit)
-        <div class="flex items-center justify-end gap-3 border-t border-slate-200 pt-6">
+        <div class="flex items-center justify-end gap-3 border-t border-base-300 pt-6">
             <button
                 type="submit"
-                class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
+                class="btn btn-neutral"
             >
                 {{ $submitLabel }}
             </button>
