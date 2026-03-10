@@ -3,11 +3,13 @@
 namespace App\UI\Definitions\Form;
 
 use App\UI\Definitions\Form\FormNodeDefinition;
+use App\UI\Types\FieldInput;
 
 final class FormFieldDefinition implements FormNodeDefinition
 {
     public function __construct(
         public readonly string $field,
+        public readonly FieldInput $input = FieldInput::Text,
         public readonly ?string $label = null,
         public readonly ?string $placeholder = null,
         public readonly ?string $helperText = null,
@@ -18,7 +20,7 @@ final class FormFieldDefinition implements FormNodeDefinition
         public readonly bool $multiple = false,
         public readonly int $xs = 12,
         public readonly int $md = 6,
-        public readonly ?int $xl = null,
+        public readonly ?int $xl = 3,
         public readonly ?int $rows = null,
         public readonly mixed $default = null,
         public readonly ?string $component = null,
@@ -37,6 +39,7 @@ final class FormFieldDefinition implements FormNodeDefinition
         return [
             'node_type' => $this->nodeType(),
             'field' => $this->field,
+            'input' => $this->input->value,
             'label' => $this->label,
             'placeholder' => $this->placeholder,
             'helper_text' => $this->helperText,

@@ -2,7 +2,6 @@
 
 namespace App\UI\Definitions;
 
-use App\UI\Types\FieldInput;
 use App\UI\Types\FieldType;
 
 final class FieldDefinition

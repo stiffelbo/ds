@@ -2,12 +2,14 @@
 
 namespace App\UI\Builders;
 
-use App\UI\Builders\FormFieldsetBuilder;
+use App\UI\Builders\FormGroupBuilder;
+use App\UI\Types\FieldInput;
 
 interface FormNodeCollectionBuilderInterface
 {
     public function field(
         string $field,
+        FieldInput $input = FieldInput::Text,
         ?string $label = null,
         ?string $placeholder = null,
         ?string $helperText = null,
@@ -18,7 +20,7 @@ interface FormNodeCollectionBuilderInterface
         bool $multiple = false,
         int $xs = 12,
         int $md = 6,
-        ?int $xl = null,
+        ?int $xl = 3,
         ?int $rows = null,
         mixed $default = null,
         ?string $component = null,
@@ -35,14 +37,16 @@ interface FormNodeCollectionBuilderInterface
         array $meta = [],
     ): static;
 
-    public function fieldset(
+    public function group(
         string $key,
         ?string $label = null,
-        ?callable $callback = null,
         ?string $description = null,
+        int $xs = 12,
+        int $md = 12,
+        ?int $xl = null,
         bool $collapsible = false,
         bool $collapsed = false,
-        ?int $columns = null,
+        ?string $variant = null,
         array $meta = [],
-    ): FormFieldsetBuilder;
+    ): FormGroupBuilder;
 }

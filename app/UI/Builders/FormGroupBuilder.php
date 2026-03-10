@@ -2,32 +2,37 @@
 
 namespace App\UI\Builders;
 
-use App\UI\Builders\FormNodeCollectionBuilderInterface;
-use App\UI\Definitions\Form\FormNodeDefinition;
 use App\UI\Definitions\Form\FormCustomDefinition;
 use App\UI\Definitions\Form\FormFieldDefinition;
-use App\UI\Definitions\Form\FormFieldsetDefinition;
+use App\UI\Definitions\Form\FormGroupDefinition;
+use App\UI\Definitions\Form\FormNodeDefinition;
 use App\UI\Definitions\Form\FormOptionsDefinition;
 use App\UI\Definitions\Form\FormValidationDefinition;
+use App\UI\Types\FieldInput;
+use InvalidArgumentException;
 
-class FormFieldsetBuilder implements FormNodeCollectionBuilderInterface
+class FormGroupBuilder implements FormNodeCollectionBuilderInterface
 {
     /** @var array<int, FormNodeDefinition> */
-    protected array $nodes = [];
+    protected array $children = [];
 
     public function __construct(
-        protected FormBuilder|FormFieldsetBuilder $parent,
+        protected FormBuilder|FormGroupBuilder $parent,
         protected string $key,
         protected ?string $label = null,
         protected ?string $description = null,
+        protected int $xs = 12,
+        protected int $md = 12,
+        protected ?int $xl = null,
         protected bool $collapsible = false,
         protected bool $collapsed = false,
-        protected ?int $columns = null,
+        protected ?string $variant = null,
         protected array $meta = [],
     ) {}
 
     public function field(
         string $field,
+        FieldInput $input = FieldInput::Text,
         ?string $label = null,
         ?string $placeholder = null,
         ?string $helperText = null,
@@ -47,15 +52,20 @@ class FormFieldsetBuilder implements FormNodeCollectionBuilderInterface
         array $meta = [],
     ): static {
         if ($options !== null && !$options instanceof FormOptionsDefinition) {
-            throw new \InvalidArgumentException('Form field options must be instance of FormOptionsDefinition or null.');
+            throw new InvalidArgumentException(
+                'Form field options must be instance of FormOptionsDefinition or null.'
+            );
         }
 
         if ($validation !== null && !$validation instanceof FormValidationDefinition) {
-            throw new \InvalidArgumentException('Form field validation must be instance of FormValidationDefinition or null.');
+            throw new InvalidArgumentException(
+                'Form field validation must be instance of FormValidationDefinition or null.'
+            );
         }
 
-        $this->nodes[] = new FormFieldDefinition(
+        $this->children[] = new FormFieldDefinition(
             field: $field,
+            input: $input,
             label: $label,
             placeholder: $placeholder,
             helperText: $helperText,
@@ -85,7 +95,7 @@ class FormFieldsetBuilder implements FormNodeCollectionBuilderInterface
         array $props = [],
         array $meta = [],
     ): static {
-        $this->nodes[] = new FormCustomDefinition(
+        $this->children[] = new FormCustomDefinition(
             component: $component,
             key: $key,
             label: $label,
@@ -96,55 +106,88 @@ class FormFieldsetBuilder implements FormNodeCollectionBuilderInterface
         return $this;
     }
 
-    public function fieldset(
+    public function group(
         string $key,
         ?string $label = null,
-        ?callable $callback = null,
         ?string $description = null,
+        int $xs = 12,
+        int $md = 12,
+        ?int $xl = null,
         bool $collapsible = false,
         bool $collapsed = false,
-        ?int $columns = null,
+        ?string $variant = null,
         array $meta = [],
-    ): FormFieldsetBuilder {
-        $builder = new self(
+    ): FormGroupBuilder {
+        return new self(
             parent: $this,
             key: $key,
             label: $label,
             description: $description,
+            xs: $xs,
+            md: $md,
+            xl: $xl,
             collapsible: $collapsible,
             collapsed: $collapsed,
-            columns: $columns,
+            variant: $variant,
+            meta: $meta,
+        );
+    }
+
+    public function groupBlock(
+        string $key,
+        ?string $label,
+        callable $callback,
+        ?string $description = null,
+        int $xs = 12,
+        int $md = 12,
+        ?int $xl = null,
+        bool $collapsible = false,
+        bool $collapsed = false,
+        ?string $variant = null,
+        array $meta = [],
+    ): static {
+        $builder = $this->group(
+            key: $key,
+            label: $label,
+            description: $description,
+            xs: $xs,
+            md: $md,
+            xl: $xl,
+            collapsible: $collapsible,
+            collapsed: $collapsed,
+            variant: $variant,
             meta: $meta,
         );
 
-        if ($callback) {
-            $callback($builder);
-            return $builder->end();
-        }
+        $callback($builder);
+        $builder->end();
 
-        return $builder;
+        return $this;
     }
 
-    public function end(): FormBuilder|FormFieldsetBuilder
+    public function pushNode(FormNodeDefinition $node): void
+    {
+        $this->children[] = $node;
+    }
+
+    public function end(): FormBuilder|FormGroupBuilder
     {
         $this->parent->pushNode(
-            new FormFieldsetDefinition(
+            new FormGroupDefinition(
                 key: $this->key,
                 label: $this->label,
                 description: $this->description,
-                nodes: $this->nodes,
+                xs: $this->xs,
+                md: $this->md,
+                xl: $this->xl,
+                children: $this->children,
                 collapsible: $this->collapsible,
                 collapsed: $this->collapsed,
-                columns: $this->columns,
+                variant: $this->variant,
                 meta: $this->meta,
             )
         );
 
         return $this->parent;
-    }
-
-    public function pushNode(FormNodeDefinition $node): void
-    {
-        $this->nodes[] = $node;
     }
 }

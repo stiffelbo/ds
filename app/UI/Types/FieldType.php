@@ -8,5 +8,6 @@ enum FieldType: string
     case Number = 'number';
     case Bool = 'bool';
     case Date = 'date';
+    case DateTime = 'datetime';
     case Fk = 'fk';
 }

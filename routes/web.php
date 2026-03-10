@@ -32,3 +32,17 @@ Route::post('/ui/theme', function (Request $request) {
 
     return back();
 })->name('ui.theme.set');
+
+
+Route::get('/ui/users', function () {
+
+    $ui = new \App\UI\UserUi();
+
+    return response()->json(
+        $ui->toArray(),
+        200,
+        [],
+        JSON_PRETTY_PRINT
+    );
+
+});

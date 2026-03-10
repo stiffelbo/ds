@@ -8,32 +8,24 @@ use App\UI\Definitions\Form\FormNodeDefinition;
 use App\UI\Definitions\Form\FormCustomDefinition;
 use App\UI\Definitions\Form\FormDefinition;
 use App\UI\Definitions\Form\FormFieldDefinition;
-use App\UI\Definitions\Form\FormFieldsetDefinition;
+use App\UI\Definitions\Form\FormGroupDefinition;
 use InvalidArgumentException;
 
 abstract class BaseUi
 {
     abstract protected function entity(): string;
 
-    /**
-     * Global human title for the entity UI definition.
-     */
     protected function title(): ?string
     {
         return null;
     }
 
-    /**
-     * General description for dashboard/help/docs usage.
-     */
     protected function description(): ?string
     {
         return null;
     }
 
     /**
-     * Additional help blocks / hints / notes.
-     *
      * @return array<int, string>
      */
     protected function help(): array
@@ -49,8 +41,6 @@ abstract class BaseUi
     abstract protected function fields(): array;
 
     /**
-     * Field relations / lookup definitions.
-     *
      * @return array<string, RelationDefinition>
      */
     protected function relations(): array
@@ -59,14 +49,6 @@ abstract class BaseUi
     }
 
     /**
-     * All forms for the entity, keyed by form key.
-     *
-     * Example:
-     * [
-     *   'add' => FormDefinition(...),
-     *   'edit' => FormDefinition(...),
-     * ]
-     *
      * @return array<string, FormDefinition>
      */
     protected function forms(): array
@@ -75,8 +57,8 @@ abstract class BaseUi
     }
 
     /**
-     * Future renderer hooks.
-     * For now they are pass-through extension points.
+     * Future extension points.
+     * For now pass-through only.
      */
     protected function tables(): array
     {
@@ -100,17 +82,18 @@ abstract class BaseUi
 
     public function toArray(): array
     {
+        $entity = $this->entity();
         $fields = $this->fields();
         $relations = $this->relations();
         $forms = $this->forms();
 
-        $this->assertEntity();
+        $this->assertEntity($entity);
         $this->assertFields($fields);
         $this->assertRelations($relations, $fields);
         $this->assertForms($forms, $fields);
 
         return [
-            'entity' => $this->entity(),
+            'entity' => $entity,
             'title' => $this->title(),
             'description' => $this->description(),
             'help' => array_values($this->help()),
@@ -130,7 +113,6 @@ abstract class BaseUi
                 $forms
             ),
 
-            // Future-facing extension points
             'tables' => $this->serializeExtensionDefinitions($this->tables()),
             'cards' => $this->serializeExtensionDefinitions($this->cards()),
             'calendars' => $this->serializeExtensionDefinitions($this->calendars()),
@@ -138,9 +120,9 @@ abstract class BaseUi
         ];
     }
 
-    protected function assertEntity(): void
+    protected function assertEntity(string $entity): void
     {
-        if (trim($this->entity()) === '') {
+        if (trim($entity) === '') {
             throw new InvalidArgumentException('UI entity key cannot be empty.');
         }
     }
@@ -238,8 +220,8 @@ abstract class BaseUi
                 continue;
             }
 
-            if ($node instanceof FormFieldsetDefinition) {
-                $this->assertFormNodes($node->nodes, $fields, $formKey);
+            if ($node instanceof FormGroupDefinition) {
+                $this->assertFormNodes($node->children, $fields, $formKey);
                 continue;
             }
 

@@ -9,6 +9,7 @@ use App\UI\Definitions\Form\FormDefinition;
 use App\UI\Definitions\Form\FormFieldDefinition;
 use App\UI\Definitions\Form\FormOptionsDefinition;
 use App\UI\Definitions\Form\FormValidationDefinition;
+use App\UI\Types\FieldInput;
 use App\UI\Types\FormSubmitMode;
 
 class FormBuilder implements FormNodeCollectionBuilderInterface
@@ -45,6 +46,7 @@ class FormBuilder implements FormNodeCollectionBuilderInterface
 
     public function field(
         string $field,
+        FieldInput $input = FieldInput::Text,
         ?string $label = null,
         ?string $placeholder = null,
         ?string $helperText = null,
@@ -73,6 +75,7 @@ class FormBuilder implements FormNodeCollectionBuilderInterface
 
         $this->nodes[] = new FormFieldDefinition(
             field: $field,
+            input: $input,
             label: $label,
             placeholder: $placeholder,
             helperText: $helperText,
@@ -113,34 +116,32 @@ class FormBuilder implements FormNodeCollectionBuilderInterface
         return $this;
     }
 
-    public function fieldset(
-        string $key,
-        ?string $label = null,
-        ?callable $callback = null,
-        ?string $description = null,
-        bool $collapsible = false,
-        bool $collapsed = false,
-        ?int $columns = null,
-        array $meta = [],
-    ): FormFieldsetBuilder {
-        $builder = new FormFieldsetBuilder(
-            parent: $this,
-            key: $key,
-            label: $label,
-            description: $description,
-            collapsible: $collapsible,
-            collapsed: $collapsed,
-            columns: $columns,
-            meta: $meta,
-        );
-
-        if ($callback) {
-            $callback($builder);
-            return $builder->end();
-        }
-
-        return $builder;
-    }
+    public function group(
+    string $key,
+    ?string $label = null,
+    ?string $description = null,
+    int $xs = 12,
+    int $md = 12,
+    ?int $xl = null,
+    bool $collapsible = false,
+    bool $collapsed = false,
+    ?string $variant = null,
+    array $meta = [],
+): FormGroupBuilder {
+    return new FormGroupBuilder(
+        parent: $this,
+        key: $key,
+        label: $label,
+        description: $description,
+        xs: $xs,
+        md: $md,
+        xl: $xl,
+        collapsible: $collapsible,
+        collapsed: $collapsed,
+        variant: $variant,
+        meta: $meta,
+    );
+}
 
     public function pushNode(FormNodeDefinition $node): void
     {
