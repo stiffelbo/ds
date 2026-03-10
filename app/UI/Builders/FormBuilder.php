@@ -10,6 +10,8 @@ use App\UI\Definitions\Form\FormFieldDefinition;
 use App\UI\Definitions\Form\FormOptionsDefinition;
 use App\UI\Definitions\Form\FormValidationDefinition;
 use App\UI\Types\FieldInput;
+use App\UI\Types\FieldInputSize;
+use App\UI\Types\FieldInputVariant;
 use App\UI\Types\FormSubmitMode;
 
 class FormBuilder implements FormNodeCollectionBuilderInterface
@@ -58,6 +60,8 @@ class FormBuilder implements FormNodeCollectionBuilderInterface
         int $xs = 12,
         int $md = 6,
         ?int $xl = null,
+        FieldInputSize $size = FieldInputSize::Small,
+        FieldInputVariant $variant = FieldInputVariant::Outlined,
         ?int $rows = null,
         mixed $default = null,
         ?string $component = null,
@@ -87,6 +91,8 @@ class FormBuilder implements FormNodeCollectionBuilderInterface
             xs: $xs,
             md: $md,
             xl: $xl,
+            size: $size,
+            variant: $variant,
             rows: $rows,
             default: $default,
             component: $component,

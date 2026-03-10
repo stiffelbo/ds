@@ -34,15 +34,24 @@ Route::post('/ui/theme', function (Request $request) {
 })->name('ui.theme.set');
 
 
+
 Route::get('/ui/users', function () {
+    $ui = (new App\UI\UserUi())->toArray();
 
-    $ui = new \App\UI\UserUi();
+    $resolver = new App\UI\Runtime\FormRuntimeResolver();
 
-    return response()->json(
-        $ui->toArray(),
-        200,
-        [],
-        JSON_PRETTY_PRINT
+    $runtime = $resolver->resolve(
+        ui: $ui,
+        formKey: 'add',
+        record: null,
+        values: old() ?: [],
+        errors: session('errors')?->getBag('default')->toArray() ?? [],
+        context: [
+            'mode' => 'create',
+        ],
     );
 
+    return view('pages.users', [
+        'runtime' => $runtime,
+    ]);
 });

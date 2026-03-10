@@ -4,6 +4,8 @@ namespace App\UI\Definitions\Form;
 
 use App\UI\Definitions\Form\FormNodeDefinition;
 use App\UI\Types\FieldInput;
+use App\UI\Types\FieldInputSize;
+use App\UI\Types\FieldInputVariant;
 
 final class FormFieldDefinition implements FormNodeDefinition
 {
@@ -21,6 +23,8 @@ final class FormFieldDefinition implements FormNodeDefinition
         public readonly int $xs = 12,
         public readonly int $md = 6,
         public readonly ?int $xl = 3,
+        public readonly ?FieldInputSize $size = FieldInputSize::Small,
+        public readonly ?FieldInputVariant $variant = FieldInputVariant::Outlined,
         public readonly ?int $rows = null,
         public readonly mixed $default = null,
         public readonly ?string $component = null,
@@ -51,6 +55,8 @@ final class FormFieldDefinition implements FormNodeDefinition
             'xs' => $this->xs,
             'md' => $this->md,
             'xl' => $this->xl,
+            'size' => $this->size,
+            'variant' => $this->variant,
             'rows' => $this->rows,
             'default' => $this->default,
             'component' => $this->component,

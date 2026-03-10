@@ -4,6 +4,8 @@ namespace App\UI\Builders;
 
 use App\UI\Builders\FormGroupBuilder;
 use App\UI\Types\FieldInput;
+use App\UI\Types\FieldInputSize;
+use App\UI\Types\FieldInputVariant;
 
 interface FormNodeCollectionBuilderInterface
 {
@@ -21,6 +23,8 @@ interface FormNodeCollectionBuilderInterface
         int $xs = 12,
         int $md = 6,
         ?int $xl = 3,
+        FieldInputSize $size = FieldInputSize::Small,
+        FieldInputVariant $variant = FieldInputVariant::Outlined,
         ?int $rows = null,
         mixed $default = null,
         ?string $component = null,

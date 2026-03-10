@@ -3,7 +3,7 @@
 namespace App\UI\Definitions\Form;
 
 use App\UI\Definitions\Form\FormNodeDefinition;
-
+use App\UI\Types\FieldInputSize;
 
 final class FormGroupDefinition implements FormNodeDefinition
 {

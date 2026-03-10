@@ -120,7 +120,7 @@ class UserUi extends BaseUi
 
         return [
             'add' => FormBuilder::make('add', 'Create user')
-                ->group('identity', 'Basic identity')
+                ->group('identity', 'Basic identity', variant: 'elevated')
                     ->field(
                         field: 'name',
                         input: FieldInput::Text,

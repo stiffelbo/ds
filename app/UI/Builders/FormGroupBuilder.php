@@ -9,6 +9,8 @@ use App\UI\Definitions\Form\FormNodeDefinition;
 use App\UI\Definitions\Form\FormOptionsDefinition;
 use App\UI\Definitions\Form\FormValidationDefinition;
 use App\UI\Types\FieldInput;
+use App\UI\Types\FieldInputVariant;
+use App\UI\Types\FieldInputSize;
 use InvalidArgumentException;
 
 class FormGroupBuilder implements FormNodeCollectionBuilderInterface
@@ -43,7 +45,9 @@ class FormGroupBuilder implements FormNodeCollectionBuilderInterface
         bool $multiple = false,
         int $xs = 12,
         int $md = 6,
-        ?int $xl = null,
+        ?int $xl = 3,
+        FieldInputSize $size = FieldInputSize::Small,
+        FieldInputVariant $variant = FieldInputVariant::Outlined,
         ?int $rows = null,
         mixed $default = null,
         ?string $component = null,
