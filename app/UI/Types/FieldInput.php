@@ -12,4 +12,5 @@ enum FieldInput: string
     case Select = 'select';
     case Bool = 'bool';
     case Date = 'date';
+    case DateTime = 'datetime';
 }

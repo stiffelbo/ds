@@ -268,177 +268,100 @@
       ]
     },
     {
-      "id": "ui_definition_system",
-      "label": "Typed UI Definition System",
+      "id": "ui_dsl_methodology",
+      "label": "Metodologia budowy UI DSL",
       "type": "section",
-      "body": "UI nie jest generowane automatycznie z bazy. Jest definiowane w kodzie aplikacji przez typed fluent DSL i kompilowane do stabilnego kontraktu runtime.",
+      "body": "UI DSL jest deklaratywnym systemem definicji struktury interfejsu użytkownika. DSL nie opisuje implementacji renderera ani HTML, tylko intencję struktury UI. Definicje są kompilowane do runtime contractu, który jest następnie konsumowany przez różne silniki renderujące (Blade, Livewire, React).",
       "children": [
         {
-          "id": "ui_core_principles",
-          "label": "Zasady rdzenia UI DSL",
-          "type": "list",
-          "body": [
-            "Definicje UI są hard-coded i wersjonowane w repo jako kod PHP.",
-            "Definicje są typed: dozwolone klucze i typy są zamknięte przez klasy i value objects, a nie przez dowolne tablice.",
-            "Root definition składa się z registry pól oraz sekcji rendererowych (form, table, cards, itd.).",
-            "Top-level fluent DSL orkiestruje strukturę, ale szczegóły rendererów są delegowane do niższych DSL-i.",
-            "Finalny output definition/build ma płaskie, przewidywalne drzewko."
-          ],
-          "children": []
-        },
-        {
-          "id": "ui_layers",
-          "label": "Warstwy UI DSL",
+          "id": "ui_dsl_architecture_layers",
+          "label": "Warstwy architektury UI DSL",
           "type": "section",
-          "body": [],
-          "children": [
-            {
-              "id": "ui_layer_top_level",
-              "label": "Top-level DSL",
-              "type": "list",
-              "body": [
-                "Odpowiada za utworzenie definicji encji/widoku, registry pól oraz podpięcie rendererów.",
-                "Nie powinien znać szczegółów wszystkich opcji konkretnego renderera.",
-                "Przykładowa rola: UI::make('projects')->field('name')->...->table('index')->...->form('create')->..."
-              ],
-              "children": []
-            },
-            {
-              "id": "ui_layer_field_registry",
-              "label": "Field registry",
-              "type": "list",
-              "body": [
-                "Każde pole ma jedną wspólną tożsamość logiczną w registry (name, label, logical type, relation, options definition, base meta).",
-                "Renderery nie powielają pełnej definicji pola; referencjonują pole po nazwie i dodają własne override/config.",
-                "To umożliwia spójne użycie tego samego pola w form, table, cards, filters i SSR."
-              ],
-              "children": []
-            },
-            {
-              "id": "ui_layer_renderer_modules",
-              "label": "Renderer modules",
-              "type": "list",
-              "body": [
-                "Każdy renderer (form, table, cards, filters, future kanban/calendar) ma własny DSL, własne typy i własną walidację.",
-                "Rozszerzenie systemu o nowy renderer powinno wymagać dopisania nowego modułu, nie przepisywania root DSL.",
-                "To realizuje podejście OCP/SRP: nowy silnik UI dokładamy przez nowy moduł sekcji."
-              ],
-              "children": []
-            }
-          ]
-        },
-        {
-          "id": "ui_definition_shape",
-          "label": "Przykładowy znormalizowany kontrakt UI Definition",
-          "type": "code",
-          "body": {
-            "format": "json",
-            "content": {
-              "entity": "projects",
-              "fields": {
-                "name": {
-                  "label": "Nazwa",
-                  "type": "string"
-                },
-                "client_id": {
-                  "label": "Klient",
-                  "type": "relation",
-                  "relation": "clients",
-                  "options": {
-                    "source": "model",
-                    "provider": "clients"
-                  }
-                },
-                "margin": {
-                  "label": "Marża",
-                  "type": "number"
-                }
-              },
-              "forms": {
-                "create": {
-                  "fields": [
-                    "name",
-                    "client_id",
-                    "margin"
-                  ]
-                }
-              },
-              "tables": {
-                "index": {
-                  "columns": [
-                    "name",
-                    "client_id",
-                    "margin"
-                  ]
-                }
-              },
-              "cards": {
-                "mobile": {
-                  "title": "name",
-                  "meta": [
-                    "client_id",
-                    "margin"
-                  ]
-                }
-              }
-            }
-          },
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "options_contract",
-      "label": "Kontrakt list opcji / selectów",
-      "type": "section",
-      "body": "Lista opcji jest osobnym subsystemem. Pole deklaruje źródło opcji, ale nie pobiera ich samo. Rozwiązanie źródła odbywa się przez provider/resolver.",
-      "children": [
-        {
-          "id": "options_principles",
-          "label": "Zasady",
-          "type": "list",
           "body": [
-            "Options to nie jest efekt uboczny relacji; relacja danych i źródło opcji to dwa różne pojęcia.",
-            "OptionsDefinition musi wspierać co najmniej: static, model/provider, enum/value-map, callback/custom; w przyszłości remote i dependent options.",
-            "Wszyscy konsumenci (Blade, Livewire, React/Vue/Angular) dostają ten sam shape value/label/meta.",
-            "Na starcie preferowany jest tryb embedded dla małych słowników; system powinien jednak przewidywać remote mode."
+            "Authoring DSL (Builder API) – fluent API używane przez developerów do deklarowania UI.",
+            "Definition Objects – immutable typed value objects opisujące strukturę UI.",
+            "Runtime Resolver – warstwa kompilująca definicję UI z danymi runtime (record, errors, values).",
+            "Renderer – silnik renderujący runtime contract (Blade, Livewire, React itp.).",
+            "Renderer nigdy nie konsumuje bezpośrednio DSL builderów ani definicji authoringowych."
           ],
           "children": []
         },
         {
-          "id": "options_shape",
-          "label": "Shape pojedynczej opcji i kolekcji",
-          "type": "code",
-          "body": {
-            "format": "json",
-            "content": {
-              "mode": "embedded",
-              "items": [
-                {
-                  "value": 1,
-                  "label": "Acme Sp. z o.o.",
-                  "disabled": false,
-                  "meta": {}
-                },
-                {
-                  "value": 2,
-                  "label": "Beta SA",
-                  "disabled": false,
-                  "meta": {}
-                }
-              ]
-            }
-          },
+          "id": "ui_dsl_design_principles",
+          "label": "Zasady projektowania DSL",
+          "type": "section",
+          "body": [
+            "DSL opisuje strukturę UI (WHAT), nie sposób renderowania (HOW).",
+            "DSL jest framework-agnostic – nie zawiera HTML, Blade, React ani CSS.",
+            "DSL jest deterministyczny – ta sama definicja zawsze generuje ten sam runtime contract.",
+            "DSL jest immutable – definicje są value objects i nie zmieniają się w runtime.",
+            "DSL jest rozszerzalny przez meta fields i nowe node types bez łamania istniejącego API.",
+            "Renderer powinien być 'głupi' – tylko renderuje runtime contract bez logiki biznesowej."
+          ],
           "children": []
         },
         {
-          "id": "options_resolver",
-          "label": "OptionsResolver",
-          "type": "list",
+          "id": "ui_dsl_node_tree_model",
+          "label": "Model drzewa UI (Node Tree)",
+          "type": "section",
           "body": [
-            "Przyjmuje OptionsDefinition i opcjonalny context runtime, zwraca znormalizowaną kolekcję opcji.",
-            "Może używać provider registry do rozwiązywania źródeł model/custom/static.",
-            "Jest współdzielony przez compiler UI, renderery SSR i ewentualne endpointy /ui/options/*."
+            "Struktura UI jest reprezentowana jako drzewo node'ów.",
+            "Każdy node implementuje wspólny kontrakt (nodeType + toArray).",
+            "Typowe node types to field, group, custom.",
+            "Group umożliwia zagnieżdżanie pól i tworzenie layoutów formularza.",
+            "Custom node pozwala wstrzykiwać komponenty specjalne lub niestandardowe renderery."
+          ],
+          "children": []
+        },
+        {
+          "id": "ui_atomic_types",
+          "label": "Atomiczne typy DSL",
+          "type": "section",
+          "body": [
+            "FieldType opisuje logiczny typ danych (string, number, boolean, date, relation, enum).",
+            "FieldInput opisuje typ komponentu UI (text, textarea, select, checkbox, radio, date, file).",
+            "FieldInputSize określa wielkość komponentu (small, medium, large).",
+            "Variant opisuje styl komponentu UI (outlined, text, elevated).",
+            "DataType i InputType są niezależne – jeden typ danych może być reprezentowany przez różne inputy.",
+            "Enums są preferowanym sposobem definiowania ograniczonego zestawu wartości DSL."
+          ],
+          "children": []
+        },
+        {
+          "id": "ui_field_registry_principle",
+          "label": "Zasada Field Registry",
+          "type": "section",
+          "body": [
+            "Każde pole ma jedną definicję logiczną w registry fields().",
+            "Formy, tabele i inne renderery referencjonują pole po nazwie zamiast powielać definicję.",
+            "Field registry zapewnia spójność typów danych, labeli i podstawowych metadanych.",
+            "Renderer modules mogą nadpisywać lub rozszerzać konfigurację pola bez zmiany registry."
+          ],
+          "children": []
+        },
+        {
+          "id": "ui_dsl_extensibility",
+          "label": "Rozszerzalność DSL",
+          "type": "section",
+          "body": [
+            "System DSL powinien być otwarty na nowe renderer modules (table, filters, cards, calendar).",
+            "Każdy renderer powinien mieć własne Definition classes, Builder DSL i walidację.",
+            "Dodanie nowego renderera nie powinno wymagać zmiany istniejących definicji DSL.",
+            "Meta fields umożliwiają rozszerzenie DSL bez łamania kompatybilności.",
+            "Runtime resolver może agregować dane z wielu definicji (fields, options, ACL)."
+          ],
+          "children": []
+        },
+        {
+          "id": "ui_runtime_contract",
+          "label": "Runtime contract UI",
+          "type": "section",
+          "body": [
+            "Runtime contract jest znormalizowanym DTO przekazywanym do rendererów.",
+            "Runtime zawiera resolved values, validation errors i kontekst (mode, permissions).",
+            "Runtime contract jest jedynym źródłem prawdy dla rendererów.",
+            "Renderer nigdy nie powinien wykonywać logiki mapowania definicji DSL.",
+            "Runtime contract może być serializowany do JSON i używany przez frontend frameworks."
           ],
           "children": []
         }
@@ -491,9 +414,7 @@
               "label": "Form definitions (app/UI/Definitions/Form)",
               "type": "object",
               "body": {
-               
                 "FormNodeDefinition": "Interfejs wspólny dla wszystkich node'ów formularza; każdy node umie zwrócić nodeType() i toArray().",
-               
                 "FormDefinition": "Definicja całego formularza; trzyma key, label, submit mode, submit config oraz drzewo nodes.",
                 "FormFieldDefinition": "Node pola formularza; opisuje override'y formularzowe dla field, np. label, placeholder, helperText, readonly, disabled, layout, validation, options.",
                 "FormFieldsetDefinition": "Node grupujący pola i inne node'y formularza; pozwala budować sekcje/fieldsety i rekursyjne drzewo formularza.",
